@@ -252,23 +252,13 @@
          border-radius: 4px;
          margin-top: 10px;
      }
-     .gas-control {
-         margin: 10px 0;
+     .warning-box {
+         background: #ff9800;
+         color: #1a1a2e;
          padding: 10px;
-         background: rgba(0,0,0,0.2);
          border-radius: 6px;
-     }
-     .gas-control label {
-         display: block;
-         margin: 5px 0;
+         margin: 10px 0;
          font-size: 12px;
-     }
-     .gas-control input {
-         width: auto;
-         display: inline-block;
-         margin: 0 10px;
-         padding: 5px;
-         width: 100px;
      }
  </style>
  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
@@ -283,34 +273,33 @@
      
      <div id="adminPanel" class="admin-panel">
          <h4>🔐 Панель координатора - Обновление хеша в блокчейне</h4>
-         <div id="accountInfo" class="account-info">🔄 Подключение к MetaMask...</div>
          
-         <div class="gas-control">
-             <label>⚡ Настройки газа (опционально):</label>
-             <label>
-                 <input type="radio" name="gasType" value="auto" checked> Авто (рекомендуется)
-             </label>
-             <label>
-                 <input type="radio" name="gasType" value="fast"> Быстрая (дороже)
-             </label>
-             <label>
-                 <input type="radio" name="gasType" value="custom"> Своя цена (Gwei):
-                 <input type="number" id="customGasPrice" value="30" step="5" min="1" disabled style="width: 80px;">
-             </label>
+         <div class="warning-box">
+             ⚠️ ВАЖНО: Если MetaMask отменяет транзакцию, <strong>отключите Smart Transactions</strong>:<br>
+             Настройки MetaMask → Экспериментальные функции → Smart Transactions → ВЫКЛЮЧИТЬ
          </div>
+         
+         <div id="accountInfo" class="account-info">🔄 Подключение к MetaMask...</div>
          
          <div>
              <label>📊 Текущий хеш таблицы:</label>
              <input type="text" id="currentTableHash" readonly placeholder="Загрузите данные...">
              <label>🔗 Адрес контракта:</label>
-             <input type="text" id="contractAddressDisplay" readonly value="Загрузка...">
+             <input type="text" id="contractAddressDisplay" readonly>
+             
+             <div style="margin: 15px 0;">
+                 <label>⚡ Цена газа (Gwei):</label>
+                 <input type="number" id="gasPriceGwei" value="50" step="5" min="10" style="width: 100px;">
+                 <span style="font-size: 11px;">(рекомендуется 50-100 при загруженной сети)</span>
+             </div>
+             
              <button id="updateHashBtn" onclick="updateHashToBlockchain()" disabled>📤 Отправить хеш в блокчейн</button>
              <button onclick="calculateAndSetHash()">🔄 Вычислить хеш таблицы</button>
          </div>
          <div id="txStatus"></div>
          <p style="font-size: 11px; margin-top: 10px; color: #aaa;">
-             ⚠️ ВНИМАНИЕ: Только владелец контракта может обновлять хеш.<br>
-             Перед отправкой убедитесь, что на счету достаточно ETH для газа (обычно ~0.001-0.005 ETH)
+             💡 Перед отправкой убедитесь, что на счету достаточно ETH для газа (минимум 0.003 ETH)<br>
+             📋 Транзакция займет 15-30 секунд
          </p>
      </div>
      
@@ -347,59 +336,10 @@
  <script>
      // ==================== НАСТРОЙКИ ====================
      const CONTRACT_ADDRESS = '0xA9707030393c7a0761D0Cc4a3b8Dc084C142Bb1F';
-     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQXbpVdotk7ozRTqwZeiTFvZLh1lYplgyJHHt1MwkZjRhQdMHP3tcVvmeBY8DlpzMoc-YUxheclPSGN/pub?gid=1565566026&single=true&output=csv';
+     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQXbpVdotk7ozRTqwZeiTFvZLh1lYplgyJHHt1MwkZjRhQdMHP3tcVvmeBY8DlpzMoc-YUxheclPSGN/pub?gid=0&single=true&output=csv';
      
-     const RPC_ENDPOINTS = [
-         'https://eth.llamarpc.com',
-         'https://rpc.ankr.com/eth',
-         'https://ethereum.publicnode.com',
-         'https://cloudflare-eth.com'
-     ];
+     const CONTRACT_ABI = [{"inputs":[{"internalType":"bytes32","name":"_hash","type":"bytes32"}],"name":"storeHash","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"name":"getHash","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"lastHash","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"lastUpdate","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"}];
      
-     const CONTRACT_ABI = [
-         {
-             "inputs": [{"internalType": "bytes32","name": "_hash","type": "bytes32"}],
-             "name": "storeHash",
-             "outputs": [],
-             "stateMutability": "nonpayable",
-             "type": "function"
-         },
-         {
-             "inputs": [],
-             "stateMutability": "nonpayable",
-             "type": "constructor"
-         },
-         {
-             "inputs": [],
-             "name": "getHash",
-             "outputs": [{"internalType": "bytes32","name": "","type": "bytes32"}],
-             "stateMutability": "view",
-             "type": "function"
-         },
-         {
-             "inputs": [],
-             "name": "lastHash",
-             "outputs": [{"internalType": "bytes32","name": "","type": "bytes32"}],
-             "stateMutability": "view",
-             "type": "function"
-         },
-         {
-             "inputs": [],
-             "name": "lastUpdate",
-             "outputs": [{"internalType": "uint256","name": "","type": "uint256"}],
-             "stateMutability": "view",
-             "type": "function"
-         },
-         {
-             "inputs": [],
-             "name": "owner",
-             "outputs": [{"internalType": "address","name": "","type": "address"}],
-             "stateMutability": "view",
-             "type": "function"
-         }
-     ];
-     
-     // ==================== ПЕРЕМЕННЫЕ ====================
      let web3;
      let contract;
      let currentDataHash = null;
@@ -431,17 +371,6 @@
          if (panel.classList.contains('show')) connectMetaMask();
      }
      
-     // Настройка газа
-     function getGasConfig() {
-         const gasType = document.querySelector('input[name="gasType"]:checked').value;
-         if (gasType === 'custom') {
-             const customGwei = parseFloat(document.getElementById('customGasPrice').value);
-             return { type: 'custom', gwei: customGwei };
-         }
-         return { type: gasType };
-     }
-     
-     // Подключение к MetaMask
      async function connectMetaMask() {
          if (typeof window.ethereum !== 'undefined') {
              try {
@@ -451,29 +380,31 @@
                  
                  web3 = new Web3(window.ethereum);
                  contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
-                 contractOwner = await contract.methods.owner().call();
+                 
+                 try {
+                     contractOwner = await contract.methods.owner().call();
+                 } catch(e) {
+                     addDebugLog('Не удалось получить owner', true);
+                 }
                  
                  document.getElementById('accountInfo').innerHTML = `
-                     ✅ Подключено: ${userAccount.substring(0, 10)}...${userAccount.substring(36)}<br>
-                     ${userAccount.toLowerCase() === contractOwner.toLowerCase() ? 
-                         '👑 Вы являетесь владельцем контракта' : 
-                         '⚠️ Вы НЕ являетесь владельцем контракта'}
+                     ✅ Подключено: ${userAccount.substring(0, 8)}...${userAccount.substring(36)}<br>
+                     ${contractOwner && userAccount.toLowerCase() === contractOwner.toLowerCase() ? 
+                         '👑 Вы владелец контракта' : '⚠️ Вы не владелец контракта'}
                  `;
                  
                  document.getElementById('contractAddressDisplay').value = CONTRACT_ADDRESS;
                  
                  const updateBtn = document.getElementById('updateHashBtn');
-                 updateBtn.disabled = !(userAccount.toLowerCase() === contractOwner.toLowerCase());
-                 
-                 window.ethereum.on('accountsChanged', (accounts) => {
-                     userAccount = accounts[0];
-                     connectMetaMask();
-                 });
+                 if (contractOwner && userAccount.toLowerCase() === contractOwner.toLowerCase()) {
+                     updateBtn.disabled = false;
+                 } else {
+                     updateBtn.disabled = true;
+                 }
                  
                  return true;
              } catch (error) {
-                 addDebugLog(`Ошибка MetaMask: ${error.message}`, true);
-                 document.getElementById('accountInfo').innerHTML = `❌ Ошибка: ${error.message}`;
+                 addDebugLog(`Ошибка: ${error.message}`, true);
                  return false;
              }
          } else {
@@ -488,43 +419,6 @@
          const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
          const hashArray = Array.from(new Uint8Array(hashBuffer));
          return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-     }
-     
-     async function initBlockchain() {
-         addDebugLog('Инициализация Ethereum...');
-         
-         for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
-             try {
-                 const testWeb3 = new Web3(RPC_ENDPOINTS[i]);
-                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Таймаут')), 5000));
-                 const listeningPromise = testWeb3.eth.net.isListening();
-                 await Promise.race([listeningPromise, timeoutPromise]);
-                 
-                 const chainId = await testWeb3.eth.getChainId();
-                 if (chainId === 1) {
-                     web3 = testWeb3;
-                     addDebugLog(`✅ Подключено к Ethereum`);
-                     updateNetworkStatus(true);
-                     break;
-                 }
-             } catch (error) {
-                 addDebugLog(`RPC ошибка: ${error.message}`, true);
-             }
-         }
-         
-         if (!web3) {
-             updateNetworkStatus(false, 'Нет подключения');
-             return false;
-         }
-         
-         try {
-             contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
-             await loadHashFromBlockchain();
-             return true;
-         } catch (error) {
-             addDebugLog(`Ошибка: ${error.message}`, true);
-             return false;
-         }
      }
      
      async function loadHashFromBlockchain() {
@@ -555,7 +449,7 @@
              const hash = await sha256(csvText);
              document.getElementById('currentTableHash').value = hash;
              currentDataHash = hash;
-             addDebugLog(`Хеш: ${hash}`);
+             addDebugLog(`Хеш: ${hash.substring(0, 20)}...`);
              alert(`Хеш таблицы:\n${hash}`);
              return hash;
          } catch (error) {
@@ -564,10 +458,10 @@
          }
      }
      
-     // Улучшенная отправка транзакции
      async function updateHashToBlockchain() {
          const hashToSend = document.getElementById('currentTableHash').value;
          const txStatusDiv = document.getElementById('txStatus');
+         const gasPriceGwei = parseInt(document.getElementById('gasPriceGwei').value);
          
          if (!hashToSend) {
              txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Сначала вычислите хеш</div>';
@@ -580,12 +474,8 @@
              return;
          }
          
-         if (userAccount.toLowerCase() !== contractOwner?.toLowerCase()) {
-             txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Только владелец контракта</div>';
-             return;
-         }
-         
          try {
+             // Проверяем сеть
              const chainId = await web3.eth.getChainId();
              if (chainId !== 1) {
                  txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Переключите MetaMask на Ethereum Mainnet</div>';
@@ -594,53 +484,31 @@
              
              // Проверяем баланс
              const balance = await web3.eth.getBalance(userAccount);
-             const balanceEth = web3.utils.fromWei(balance, 'ether');
+             const balanceEth = parseFloat(web3.utils.fromWei(balance, 'ether'));
              addDebugLog(`Баланс: ${balanceEth} ETH`);
              
-             if (parseFloat(balanceEth) < 0.002) {
-                 txStatusDiv.innerHTML = `<div class="tx-status tx-error">⚠️ Недостаточно ETH для газа. Баланс: ${balanceEth} ETH. Нужно минимум 0.002 ETH</div>`;
+             const estimatedGas = 50000;
+             const gasPriceWei = web3.utils.toWei(String(gasPriceGwei), 'gwei');
+             const estimatedCost = (estimatedGas * gasPriceGwei) / 1e9;
+             
+             if (balanceEth < 0.003) {
+                 txStatusDiv.innerHTML = `<div class="tx-status tx-error">⚠️ Недостаточно ETH! Баланс: ${balanceEth} ETH. Нужно минимум 0.003 ETH</div>`;
                  return;
              }
              
-             txStatusDiv.innerHTML = '<div class="tx-status tx-pending">⏳ Подготовка транзакции...</div>';
-             
-             // Получаем актуальную цену газа
-             let gasPrice;
-             const gasConfig = getGasConfig();
-             
-             if (gasConfig.type === 'fast') {
-                 const gasPrices = await web3.eth.getGasPrice();
-                 gasPrice = Math.floor(parseInt(gasPrices) * 1.5);
-                 addDebugLog(`Быстрая цена газа: ${web3.utils.fromWei(String(gasPrice), 'gwei')} Gwei`);
-             } else if (gasConfig.type === 'custom') {
-                 gasPrice = web3.utils.toWei(String(gasConfig.gwei), 'gwei');
-                 addDebugLog(`Пользовательская цена газа: ${gasConfig.gwei} Gwei`);
-             } else {
-                 gasPrice = await web3.eth.getGasPrice();
-                 addDebugLog(`Стандартная цена газа: ${web3.utils.fromWei(gasPrice, 'gwei')} Gwei`);
-             }
-             
-            // Оцениваем газ
-             const txData = contract.methods.storeHash(hashToSend);
-             let gasLimit = await txData.estimateGas({ from: userAccount });
-             gasLimit = Math.floor(gasLimit * 1.2);
-             addDebugLog(`Gas лимит: ${gasLimit}`);
-             
-             const totalCostWei = gasPrice * gasLimit;
-             const totalCostEth = web3.utils.fromWei(String(totalCostWei), 'ether');
-             addDebugLog(`Примерная стоимость: ${totalCostEth} ETH`);
-             
              txStatusDiv.innerHTML = `<div class="tx-status tx-pending">
                  ⏳ Отправка транзакции...<br>
-                 <small>Газ: ${web3.utils.fromWei(String(gasPrice), 'gwei')} Gwei | Лимит: ${gasLimit} | Стоимость: ~${parseFloat(totalCostEth).toFixed(6)} ETH</small><br>
+                 <small>Цена газа: ${gasPriceGwei} Gwei | Ориентировочная стоимость: ~${estimatedCost.toFixed(6)} ETH</small><br>
                  Подтвердите в MetaMask
              </div>`;
              
-             // Отправляем с увеличенным лимитом газа
-             const receipt = await txData.send({
+             const tx = contract.methods.storeHash(hashToSend);
+             
+             // Отправляем транзакцию с указанным газом
+             const receipt = await tx.send({
                  from: userAccount,
-                 gas: gasLimit,
-                 gasPrice: gasPrice
+                 gas: 100000,
+                 gasPrice: gasPriceWei
              });
              
              addDebugLog(`✅ Транзакция: ${receipt.transactionHash}`);
@@ -648,22 +516,23 @@
              txStatusDiv.innerHTML = `
                  <div class="tx-status tx-success">
                      ✅ Хеш успешно обновлен!<br>
-                     <a href="https://etherscan.io/tx/${receipt.transactionHash}" target="_blank">${receipt.transactionHash}</a>
+                     <a href="https://etherscan.io/tx/${receipt.transactionHash}" target="_blank">${receipt.transactionHash.substring(0, 30)}...</a>
                  </div>
              `;
              
              await loadHashFromBlockchain();
              if (currentDataHash) updateVerificationStatus(currentDataHash, window.blockchainHash);
              
-             setTimeout(() => { if (txStatusDiv.innerHTML.includes('✅')) txStatusDiv.innerHTML = ''; }, 10000);
+             setTimeout(() => { if (txStatusDiv.innerHTML.includes('✅')) txStatusDiv.innerHTML = ''; }, 15000);
              
          } catch (error) {
              addDebugLog(`Ошибка: ${error.message}`, true);
              
              let errorMsg = error.message;
-             if (error.code === 4001) errorMsg = 'Вы отклонили транзакцию';
-             if (error.message.includes('insufficient funds')) errorMsg = 'Недостаточно ETH для газа';
-             if (error.message.includes('replacement transaction')) errorMsg = 'Дублирующая транзакция, подождите';
+             if (error.code === 4001) errorMsg = 'Вы отклонили транзакцию в MetaMask';
+             else if (error.message.includes('insufficient funds')) errorMsg = 'Недостаточно ETH для газа';
+             else if (error.message.includes('Smart Transaction')) errorMsg = 'Отключите Smart Transactions в настройках MetaMask (Экспериментальные функции)';
+             else if (error.message.includes('user rejected')) errorMsg = 'Транзакция отклонена';
              
              txStatusDiv.innerHTML = `<div class="tx-status tx-error">❌ ${errorMsg}</div>`;
          }
@@ -758,10 +627,14 @@
          
          data.slice(0, 100).forEach(item => {
              let rateDisplay = typeof item.points.RATE === 'number' && !isNaN(item.points.RATE) && item.points.RATE !== 0 
-                 ? item.points.RATE.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 10 })
+                 ? item.points.RATE.toLocaleString('ru-RU', { minimumFractionDigits: 2 })
                  : '0';
              
-             html += `<tr>${['id','name','date','description'].map(f => `<td>${escapeHtml(String(item[f]))}</td>`).join('')}
+             html += `<tr>
+                 <td>${escapeHtml(String(item.id))}</td>
+                 <td>${escapeHtml(item.name)}</td>
+                 <td>${escapeHtml(item.date)}</td>
+                 <td>${escapeHtml(item.description.substring(0, 50))}</td>
                  <td>${escapeHtml(String(item.points.E))}</td>
                  <td>${escapeHtml(String(item.points.W))}</td>
                  <td>${escapeHtml(String(item.points.J))}</td>
@@ -797,9 +670,9 @@
          }
          await loadHashFromBlockchain();
          if (currentDataHash === window.blockchainHash) {
-             resultDiv.innerHTML = '<div class="success">✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА!</div>';
+             resultDiv.innerHTML = '<div class="success">✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА! Данные не изменены.</div>';
          } else {
-             resultDiv.innerHTML = `<div class="fail">⚠️ ДАННЫЕ ИЗМЕНЕНЫ!<br>Текущий: ${currentDataHash}<br>В блокчейне: ${window.blockchainHash}</div>`;
+             resultDiv.innerHTML = `<div class="fail">⚠️ ДАННЫЕ ИЗМЕНЕНЫ!<br><small>Текущий хеш: ${currentDataHash.substring(0, 30)}...<br>Хеш в блокчейне: ${window.blockchainHash?.substring(0, 30)}...</small></div>`;
          }
      }
      
@@ -810,16 +683,23 @@
          return div.innerHTML;
      }
      
-     // Обработчик переключения типа газа
-     document.addEventListener('DOMContentLoaded', () => {
-         const radioButtons = document.querySelectorAll('input[name="gasType"]');
-         const customInput = document.getElementById('customGasPrice');
-         radioButtons.forEach(radio => {
-             radio.addEventListener('change', () => {
-                 customInput.disabled = radio.value !== 'custom';
-             });
-         });
-     });
+     async function initBlockchain() {
+         addDebugLog('Инициализация...');
+         try {
+             const testWeb3 = new Web3('https://eth.llamarpc.com');
+             await testWeb3.eth.net.isListening();
+             web3 = testWeb3;
+             contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+             await loadHashFromBlockchain();
+             updateNetworkStatus(true);
+             addDebugLog('✅ Подключено');
+             return true;
+         } catch (error) {
+             updateNetworkStatus(false, 'Ошибка');
+             addDebugLog(`❌ Ошибка: ${error.message}`, true);
+             return false;
+         }
+     }
      
      async function init() {
          addDebugLog('🚀 Запуск...');
