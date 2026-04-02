@@ -85,6 +85,10 @@
          font-size: 14px;
      }
      .check-btn:hover { background: #5a67d8; }
+     .check-btn:disabled {
+         background: #ccc;
+         cursor: not-allowed;
+     }
      .hash-box {
          background: #2d3748;
          color: #68d391;
@@ -165,6 +169,90 @@
      }
      .status-online { background: #4caf50; color: white; }
      .status-offline { background: #f44336; color: white; }
+     
+     /* Стили для формы обновления */
+     .admin-panel {
+         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+         color: white;
+         padding: 20px;
+         margin: 20px;
+         border-radius: 8px;
+         border: 1px solid #00ff88;
+         display: none;
+     }
+     .admin-panel.show {
+         display: block;
+     }
+     .admin-panel h4 {
+         margin-bottom: 15px;
+         color: #00ff88;
+     }
+     .admin-panel input {
+         width: 100%;
+         padding: 10px;
+         margin: 10px 0;
+         border: 1px solid #333;
+         border-radius: 6px;
+         background: #2d3748;
+         color: #68d391;
+         font-family: monospace;
+         font-size: 12px;
+     }
+     .admin-panel button {
+         background: #00ff88;
+         color: #1a1a2e;
+         border: none;
+         padding: 10px 20px;
+         border-radius: 6px;
+         cursor: pointer;
+         font-weight: bold;
+         margin-right: 10px;
+     }
+     .admin-panel button:hover {
+         background: #00cc6a;
+     }
+     .admin-panel button:disabled {
+         background: #666;
+         cursor: not-allowed;
+     }
+     .admin-toggle {
+         background: #ff9800;
+         color: white;
+         border: none;
+         padding: 6px 12px;
+         border-radius: 4px;
+         cursor: pointer;
+         font-size: 12px;
+         margin-left: 10px;
+     }
+     .admin-toggle:hover {
+         background: #f57c00;
+     }
+     .tx-status {
+         margin-top: 10px;
+         padding: 10px;
+         border-radius: 6px;
+         font-size: 12px;
+     }
+     .tx-pending {
+         background: #ff9800;
+         color: white;
+     }
+     .tx-success {
+         background: #4caf50;
+         color: white;
+     }
+     .tx-error {
+         background: #f44336;
+         color: white;
+     }
+     .account-info {
+         font-size: 12px;
+         padding: 5px;
+         background: rgba(0,0,0,0.2);
+         border-radius: 4px;
+         margin-top: 10px;
+     }
  </style>
  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
 </head>
@@ -173,6 +261,26 @@
      <div class="header">
          <h1>🏠 Мы и Наш Дом</h1>
          <p>Реестр деяний участников движения | <span style="font-size: 14px;">⚡ Сеть: Ethereum Mainnet</span></p>
+         <button class="admin-toggle" onclick="toggleAdminPanel()">🔐 Панель координатора</button>
+     </div>
+     
+     <!-- Панель администратора (только для координатора) -->
+     <div id="adminPanel" class="admin-panel">
+         <h4>🔐 Панель координатора - Обновление хеша в блокчейне</h4>
+         <div id="accountInfo" class="account-info">🔄 Подключение к MetaMask...</div>
+         <div>
+             <label>📊 Текущий хеш таблицы:</label>
+             <input type="text" id="currentTableHash" readonly placeholder="Загрузите данные...">
+             <label>🔗 Адрес контракта:</label>
+             <input type="text" id="contractAddressDisplay" readonly value="Загрузка...">
+             <button id="updateHashBtn" onclick="updateHashToBlockchain()" disabled>📤 Отправить хеш в блокчейн</button>
+             <button onclick="calculateAndSetHash()">🔄 Вычислить хеш таблицы</button>
+         </div>
+         <div id="txStatus"></div>
+         <p style="font-size: 11px; margin-top: 10px; color: #aaa;">
+             ⚠️ ВНИМАНИЕ: Только владелец контракта может обновлять хеш.<br>
+             Перед отправкой убедитесь, что MetaMask подключен к Ethereum Mainnet.
+         </p>
      </div>
      
      <div class="verification" id="verificationBlock">
@@ -207,21 +315,19 @@
 
  <script>
      // ==================== НАСТРОЙКИ ====================
-     // ⚠️ ВАЖНО: Замените эти значения на ваши!
-     
-     const CONTRACT_ADDRESS = '0xA9707030393c7a0761D0Cc4a3b8Dc084C142Bb1F';  // ЗАМЕНИТЕ на адрес вашего контракта в Ethereum
+     // ⚠️ ЗАМЕНИТЕ НА ВАШ АДРЕС КОНТРАКТА В ETHEREUM
+     const CONTRACT_ADDRESS = '0xA9707030393c7a0761D0Cc4a3b8Dc084C142Bb1F';  // ЗАМЕНИТЕ!
      const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQXbpVdotk7ozRTqwZeiTFvZLh1lYplgyJHHt1MwkZjRhQdMHP3tcVvmeBY8DlpzMoc-YUxheclPSGN/pub?gid=0&single=true&output=csv';
      
-     // RPC endpoints для Ethereum (несколько для надежности)
+     // RPC endpoints для Ethereum
      const RPC_ENDPOINTS = [
          'https://eth.llamarpc.com',
          'https://rpc.ankr.com/eth',
          'https://ethereum.publicnode.com',
-         'https://cloudflare-eth.com',
-         'https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161'
+         'https://cloudflare-eth.com'
      ];
      
-     // ABI контракта (тот же, что и для Polygon)
+     // ABI контракта
      const CONTRACT_ABI = [
          {
              "inputs": [
@@ -299,7 +405,8 @@
      let web3;
      let contract;
      let currentDataHash = null;
-     let currentRpcIndex = 0;
+     let userAccount = null;
+     let contractOwner = null;
      
      // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
      
@@ -325,12 +432,72 @@
          btn.textContent = panel.classList.contains('show') ? '🔒 Скрыть отладку' : '🐛 Показать отладку';
      }
      
+     function toggleAdminPanel() {
+         const panel = document.getElementById('adminPanel');
+         panel.classList.toggle('show');
+         if (panel.classList.contains('show')) {
+             connectMetaMask();
+         }
+     }
+     
      function updateNetworkStatus(connected, message = '') {
          const statusSpan = document.getElementById('networkStatus');
          if (connected) {
              statusSpan.innerHTML = '<span class="status-badge status-online">🟢 Онлайн (Ethereum)</span>';
          } else {
              statusSpan.innerHTML = `<span class="status-badge status-offline">🔴 Офлайн: ${message}</span>`;
+         }
+     }
+     
+     // Подключение к MetaMask
+     async function connectMetaMask() {
+         if (typeof window.ethereum !== 'undefined') {
+             try {
+                 addDebugLog('Подключение к MetaMask...');
+                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                 userAccount = accounts[0];
+                 
+                 // Используем MetaMask как провайдер
+                 web3 = new Web3(window.ethereum);
+                 contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+                 
+                 // Получаем владельца контракта
+                 contractOwner = await contract.methods.owner().call();
+                 
+                 document.getElementById('accountInfo').innerHTML = `
+                     ✅ Подключено: ${userAccount.substring(0, 10)}...${userAccount.substring(36)}<br>
+                     ${userAccount.toLowerCase() === contractOwner.toLowerCase() ? 
+                         '👑 Вы являетесь владельцем контракта' : 
+                         '⚠️ Вы НЕ являетесь владельцем контракта (только владелец может обновлять хеш)'}
+                 `;
+                 
+                 document.getElementById('contractAddressDisplay').value = CONTRACT_ADDRESS;
+                 
+                 const updateBtn = document.getElementById('updateHashBtn');
+                 if (userAccount.toLowerCase() === contractOwner.toLowerCase()) {
+                     updateBtn.disabled = false;
+                     addDebugLog('✅ Подключен как владелец контракта');
+                 } else {
+                     updateBtn.disabled = true;
+                     addDebugLog('⚠️ Подключен не владелец контракта');
+                 }
+                 
+                 // Слушаем смену аккаунта
+                 window.ethereum.on('accountsChanged', (accounts) => {
+                     userAccount = accounts[0];
+                     connectMetaMask();
+                 });
+                 
+                 return true;
+             } catch (error) {
+                 addDebugLog(`Ошибка подключения MetaMask: ${error.message}`, true);
+                 document.getElementById('accountInfo').innerHTML = `❌ Ошибка: ${error.message}`;
+                 return false;
+             }
+         } else {
+             addDebugLog('MetaMask не установлен!', true);
+             document.getElementById('accountInfo').innerHTML = '❌ MetaMask не установлен. Установите расширение MetaMask.';
+             return false;
          }
      }
      
@@ -343,7 +510,7 @@
          return hashHex;
      }
      
-     // Подключение к Ethereum с перебором RPC
+     // Подключение к Ethereum (только чтение)
      async function initBlockchain() {
          addDebugLog('Инициализация подключения к Ethereum...');
          
@@ -353,8 +520,6 @@
                  addDebugLog(`Пробуем RPC #${i+1}: ${rpcUrl.substring(0, 50)}...`);
                  
                  const testWeb3 = new Web3(rpcUrl);
-                 
-                 // Проверяем подключение с таймаутом
                  const timeoutPromise = new Promise((_, reject) => {
                      setTimeout(() => reject(new Error('Таймаут подключения')), 8000);
                  });
@@ -364,90 +529,170 @@
                  
                  if (isListening) {
                      const chainId = await testWeb3.eth.getChainId();
-                     if (chainId === 1) { // 1 = Ethereum Mainnet
+                     if (chainId === 1) {
                          web3 = testWeb3;
-                         addDebugLog(`✅ Успешно подключено к Ethereum! Chain ID: ${chainId}`);
+                         addDebugLog(`✅ Успешно подключено к Ethereum!`);
                          updateNetworkStatus(true);
                          break;
-                     } else {
-                         addDebugLog(`⚠️ Неправильная сеть. Chain ID: ${chainId} (ожидался 1)`);
                      }
                  }
              } catch (error) {
-                 addDebugLog(`❌ Ошибка подключения к ${rpcUrl}: ${error.message}`, true);
+                 addDebugLog(`❌ Ошибка подключения: ${error.message}`, true);
              }
          }
          
          if (!web3) {
-             addDebugLog('❌ Не удалось подключиться ни к одному RPC серверу', true);
-             updateNetworkStatus(false, 'Нет подключения к сети');
-             document.getElementById('storedHash').innerHTML = 
-                 '<span style="color: red;">❌ Не удалось подключиться к сети Ethereum. Проверьте интернет-соединение.</span>';
+             addDebugLog('❌ Не удалось подключиться ни к одному RPC', true);
+             updateNetworkStatus(false, 'Нет подключения');
              return false;
          }
          
          try {
              contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
-             
-             // Проверяем существование контракта
              const code = await web3.eth.getCode(CONTRACT_ADDRESS);
              if (code === '0x' || code === '0x0') {
-                 throw new Error('Контракт не найден по указанному адресу');
+                 throw new Error('Контракт не найден');
              }
              
-             addDebugLog(`✅ Контракт найден. Адрес: ${CONTRACT_ADDRESS}`);
+             addDebugLog(`✅ Контракт найден: ${CONTRACT_ADDRESS}`);
              await loadHashFromBlockchain();
              return true;
          } catch (error) {
-             addDebugLog(`❌ Ошибка инициализации контракта: ${error.message}`, true);
-             document.getElementById('storedHash').innerHTML = 
-                 `<span style="color: red;">❌ Ошибка контракта: ${error.message}</span>`;
+             addDebugLog(`❌ Ошибка контракта: ${error.message}`, true);
              return false;
          }
      }
      
      // Загрузка хеша из блокчейна
      async function loadHashFromBlockchain() {
-         if (!contract) {
-             addDebugLog('Контракт не инициализирован', true);
-             return null;
-         }
+         if (!contract) return null;
          
          try {
              addDebugLog('Загрузка хеша из контракта...');
-             
-             const timeoutPromise = new Promise((_, reject) => {
-                 setTimeout(() => reject(new Error('Таймаут при чтении из блокчейна')), 15000);
-             });
-             
-             const hashPromise = contract.methods.lastHash().call();
-             const hashBytes32 = await Promise.race([hashPromise, timeoutPromise]);
-             
-             addDebugLog(`Хеш из блокчейна: ${hashBytes32}`);
+             const hashBytes32 = await contract.methods.lastHash().call();
              
              if (hashBytes32 && hashBytes32 !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
                  window.blockchainHash = hashBytes32;
-                 document.getElementById('storedHash').innerHTML = 
-                     `<span style="word-break: break-all;">${hashBytes32}</span>`;
-                 document.getElementById('txInfo').innerHTML = 
-                     `📋 Адрес контракта: <a href="https://etherscan.io/address/${CONTRACT_ADDRESS}" target="_blank">${CONTRACT_ADDRESS}</a>`;
+                 document.getElementById('storedHash').innerHTML = `<span style="word-break: break-all;">${hashBytes32}</span>`;
+                 document.getElementById('txInfo').innerHTML = `📋 Адрес контракта: <a href="https://etherscan.io/address/${CONTRACT_ADDRESS}" target="_blank">${CONTRACT_ADDRESS}</a>`;
                  return hashBytes32;
              } else {
                  document.getElementById('storedHash').innerHTML = '⚠️ Хеш не установлен в контракте';
                  window.blockchainHash = null;
-                 addDebugLog('Хеш в контракте не установлен');
                  return null;
              }
          } catch (error) {
-             addDebugLog(`Ошибка чтения из блокчейна: ${error.message}`, true);
-             document.getElementById('storedHash').innerHTML = 
-                 `<span style="color: red;">❌ Ошибка: ${error.message}</span>`;
-             window.blockchainHash = null;
+             addDebugLog(`Ошибка чтения: ${error.message}`, true);
              return null;
          }
      }
      
-     // Парсинг CSV с поддержкой кавычек
+     // Вычисление и установка хеша в поле
+     async function calculateAndSetHash() {
+         try {
+             addDebugLog('Вычисление хеша таблицы...');
+             const response = await fetch(CSV_URL);
+             const csvText = await response.text();
+             const hash = await sha256(csvText);
+             
+             document.getElementById('currentTableHash').value = hash;
+             currentDataHash = hash;
+             
+             addDebugLog(`Хеш вычислен: ${hash}`);
+             alert(`Хеш таблицы:\n${hash}\n\nНажмите "Отправить хеш в блокчейн" для подтверждения.`);
+             return hash;
+         } catch (error) {
+             addDebugLog(`Ошибка: ${error.message}`, true);
+             alert('Ошибка при вычислении хеша');
+         }
+     }
+     
+     // Отправка хеша в блокчейн
+     async function updateHashToBlockchain() {
+         const hashToSend = document.getElementById('currentTableHash').value;
+         const txStatusDiv = document.getElementById('txStatus');
+         
+         if (!hashToSend) {
+             txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Сначала вычислите хеш таблицы</div>';
+             return;
+         }
+         
+         if (!hashToSend.startsWith('0x') || hashToSend.length !== 66) {
+             txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Неверный формат хеша (должен быть 0x + 64 символа)</div>';
+             return;
+         }
+         
+         if (!userAccount) {
+             txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Подключите MetaMask</div>';
+             await connectMetaMask();
+             return;
+         }
+         
+         if (userAccount.toLowerCase() !== contractOwner?.toLowerCase()) {
+             txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Только владелец контракта может обновлять хеш</div>';
+             return;
+         }
+         
+         try {
+             // Проверяем сеть
+             const chainId = await web3.eth.getChainId();
+             if (chainId !== 1) {
+                 txStatusDiv.innerHTML = '<div class="tx-status tx-error">❌ Переключите MetaMask на Ethereum Mainnet (Chain ID: 1)</div>';
+                 return;
+             }
+             
+             txStatusDiv.innerHTML = '<div class="tx-status tx-pending">⏳ Отправка транзакции... Подтвердите в MetaMask</div>';
+             
+             // Отправляем транзакцию
+             const tx = contract.methods.storeHash(hashToSend);
+             const gas = await tx.estimateGas({ from: userAccount });
+             const gasPrice = await web3.eth.getGasPrice();
+             
+             addDebugLog(`Отправка хеша: ${hashToSend}`);
+             addDebugLog(`Gas: ${gas}, GasPrice: ${gasPrice}`);
+             
+             const receipt = await tx.send({
+                 from: userAccount,
+                 gas: Math.floor(gas * 1.1), // Добавляем 10% запаса
+                 gasPrice: gasPrice
+             });
+             
+             addDebugLog(`Транзакция подтверждена: ${receipt.transactionHash}`);
+             
+             txStatusDiv.innerHTML = `
+                 <div class="tx-status tx-success">
+                     ✅ Хеш успешно обновлен в блокчейне!<br>
+                     Транзакция: <a href="https://etherscan.io/tx/${receipt.transactionHash}" target="_blank">${receipt.transactionHash.substring(0, 20)}...</a>
+                 </div>
+             `;
+             
+             // Обновляем отображаемый хеш
+             await loadHashFromBlockchain();
+             
+             // Обновляем статус верификации
+             if (currentDataHash) {
+                 updateVerificationStatus(currentDataHash, window.blockchainHash);
+             }
+             
+             // Очищаем статус через 10 секунд
+             setTimeout(() => {
+                 if (txStatusDiv.innerHTML.includes('✅')) {
+                     txStatusDiv.innerHTML = '';
+                 }
+             }, 10000);
+             
+         } catch (error) {
+             addDebugLog(`Ошибка транзакции: ${error.message}`, true);
+             txStatusDiv.innerHTML = `
+                 <div class="tx-status tx-error">
+                     ❌ Ошибка: ${error.message}<br>
+                     ${error.code === 4001 ? 'Вы отклонили транзакцию в MetaMask' : ''}
+                 </div>
+             `;
+         }
+     }
+     
+     // Парсинг CSV
      function parseCSV(csvText) {
          const rows = [];
          const regex = /(?:,|\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^",\n]*))/g;
@@ -476,37 +721,18 @@
              }
          }
          
-         if (row.length > 0) {
-             rows.push(row);
-         }
-         
+         if (row.length > 0) rows.push(row);
          return rows;
      }
      
-     // Загрузка CSV данных
+     // Загрузка данных
      async function loadData() {
          try {
-             addDebugLog(`Загрузка CSV с: ${CSV_URL}`);
-             
-             const response = await fetch(CSV_URL, {
-                 mode: 'cors',
-                 headers: {
-                     'Accept': 'text/csv,text/plain,*/*'
-                 }
-             });
-             
-             if (!response.ok) {
-                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-             }
+             addDebugLog(`Загрузка CSV...`);
+             const response = await fetch(CSV_URL);
+             if (!response.ok) throw new Error(`HTTP ${response.status}`);
              
              const csvText = await response.text();
-             
-             if (!csvText || csvText.trim().length === 0) {
-                 throw new Error('CSV файл пуст');
-             }
-             
-             addDebugLog(`CSV загружен, размер: ${csvText.length} байт`);
-             
              const rows = parseCSV(csvText);
              
              if (rows.length < 2) {
@@ -514,19 +740,13 @@
                  return [];
              }
              
-             const headers = rows[0];
-             addDebugLog(`Заголовки CSV: ${headers.slice(0, 8).join(', ')}...`);
-             
              const data = [];
-             
              for (let i = 1; i < rows.length; i++) {
                  const cols = rows[i];
                  if (cols.length >= 5) {
-                     // Парсим рейтинг (колонка 11)
                      let rateValue = 0;
                      if (cols[11]) {
-                         const rateStr = cols[11].replace(/["']/g, '').trim().replace(',', '.');
-                         rateValue = parseFloat(rateStr) || 0;
+                         rateValue = parseFloat(cols[11].replace(/["']/g, '').trim().replace(',', '.')) || 0;
                      }
                      
                      data.push({
@@ -548,28 +768,27 @@
                  }
              }
              
-             addDebugLog(`Загружено записей: ${data.length}`);
              displayTable(data);
              document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
              
-             // Вычисляем хеш данных
              const dataString = JSON.stringify(data);
              currentDataHash = await sha256(dataString);
-             addDebugLog(`Хеш таблицы: ${currentDataHash}`);
              
-             // Сравниваем с хешем из блокчейна
+             // Автоматически заполняем поле хеша в админ-панели
+             if (document.getElementById('currentTableHash')) {
+                 document.getElementById('currentTableHash').value = currentDataHash;
+             }
+             
+             addDebugLog(`Загружено ${data.length} записей, хеш: ${currentDataHash}`);
+             
              if (window.blockchainHash) {
                  updateVerificationStatus(currentDataHash, window.blockchainHash);
              }
              
              return data;
          } catch (error) {
-             addDebugLog(`Ошибка загрузки CSV: ${error.message}`, true);
-             document.getElementById('tableContainer').innerHTML = 
-                 `<div class="loading-text">
-                     ❌ Ошибка загрузки данных: ${error.message}<br>
-                     <small>Проверьте доступность Google Sheets</small>
-                 </div>`;
+             addDebugLog(`Ошибка: ${error.message}`, true);
+             document.getElementById('tableContainer').innerHTML = `<div class="loading-text">❌ Ошибка: ${error.message}</div>`;
              return [];
          }
      }
@@ -583,18 +802,13 @@
          let html = '<div class="table-wrapper"><table><thead><tr>';
          html += '<th>ID</th><th>Участник</th><th>Дата</th><th>Описание</th>';
          html += '<th>E</th><th>W</th><th>J</th><th>S</th><th>C</th>';
-         html += '<th>Ссылка на подтверждение</th><th>Дата верификации</th><th>Рейтинг</th>';
+         html += '<th>Ссылка</th><th>Дата верификации</th><th>Рейтинг</th>';
          html += '</tr></thead><tbody>';
          
          data.slice(0, 100).forEach(item => {
-             let rateDisplay = '0';
-             const rateValue = item.points.RATE;
-             if (typeof rateValue === 'number' && !isNaN(rateValue) && rateValue !== 0) {
-                 rateDisplay = rateValue.toLocaleString('ru-RU', {
-                     minimumFractionDigits: 2,
-                     maximumFractionDigits: 10
-                 });
-             }
+             let rateDisplay = typeof item.points.RATE === 'number' && !isNaN(item.points.RATE) && item.points.RATE !== 0 
+                 ? item.points.RATE.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 10 })
+                 : '0';
              
              html += `<tr>
                  <td>${escapeHtml(String(item.id))}</td>
@@ -613,9 +827,7 @@
          });
          
          html += '</tbody></table></div>';
-         if (data.length > 100) {
-             html += '<p style="margin-top: 10px; color: #999;">Показаны первые 100 записей из ' + data.length + '</p>';
-         }
+         if (data.length > 100) html += `<p style="margin-top: 10px; color: #999;">Показаны первые 100 записей из ${data.length}</p>`;
          
          document.getElementById('tableContainer').innerHTML = html;
      }
@@ -624,59 +836,40 @@
          const statusSpan = document.getElementById('statusBadge');
          
          if (!blockchainHash || blockchainHash === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-             statusSpan.innerHTML = '<span class="hash-status error">❌ ХЕШ НЕ УСТАНОВЛЕН В КОНТРАКТЕ</span>';
+             statusSpan.innerHTML = '<span class="hash-status error">❌ ХЕШ НЕ УСТАНОВЛЕН</span>';
              return;
          }
          
          if (currentHash === blockchainHash) {
-             statusSpan.innerHTML = '<span class="hash-status verified">✅ ВЕРИФИЦИРОВАНО (данные совпадают с блокчейном)</span>';
-             addDebugLog('✅ Верификация пройдена: хеши совпадают');
+             statusSpan.innerHTML = '<span class="hash-status verified">✅ ВЕРИФИЦИРОВАНО</span>';
          } else {
-             statusSpan.innerHTML = '<span class="hash-status pending">⚠️ ДАННЫЕ ИЗМЕНЕНЫ (не совпадают с блокчейном)</span>';
-             addDebugLog('⚠️ Хеши не совпадают! Данные были изменены');
+             statusSpan.innerHTML = '<span class="hash-status pending">⚠️ ДАННЫЕ ИЗМЕНЕНЫ</span>';
          }
      }
      
      async function verifyWithBlockchain() {
          const resultDiv = document.getElementById('verifyResult');
-         addDebugLog('Запуск ручной верификации...');
          
          if (!currentDataHash) {
              resultDiv.innerHTML = '<div class="fail">❌ Сначала загрузите данные</div>';
              return;
          }
          
-         // Перезагружаем хеш из блокчейна
          await loadHashFromBlockchain();
          
          if (!window.blockchainHash || window.blockchainHash === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-             resultDiv.innerHTML = `<div class="fail">
-                 ⚠️ Хеш не установлен в смарт-контракте!<br><br>
-                 <strong>Для координатора:</strong><br>
-                 1. Вычислите хеш таблицы (нажмите F12 и введите calculateHash())<br>
-                 2. Отправьте его в контракт через Remix (функция storeHash)<br>
-                 3. Обновите страницу
-             </div>`;
+             resultDiv.innerHTML = `<div class="fail">⚠️ Хеш не установлен в контракте</div>`;
              return;
          }
          
          if (currentDataHash === window.blockchainHash) {
-             resultDiv.innerHTML = `<div class="success">
-                 ✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА!<br><br>
-                 Данные не были изменены с момента последней фиксации в блокчейне Ethereum.<br>
-                 Транзакция зафиксирована навсегда и не может быть подделана.
-             </div>`;
-             addDebugLog('✅ Ручная верификация успешна');
+             resultDiv.innerHTML = `<div class="success">✅ ВЕРИФИКАЦИЯ ПРОЙДЕНА! Данные не изменены.</div>`;
          } else {
              resultDiv.innerHTML = `<div class="fail">
-                 ⚠️ ВНИМАНИЕ! Данные были изменены после последней верификации!<br><br>
-                 <strong>Текущий хеш таблицы:</strong><br>
-                 <code style="font-size: 10px; word-break: break-all;">${currentDataHash}</code><br><br>
-                 <strong>Хеш в блокчейне Ethereum:</strong><br>
-                 <code style="font-size: 10px; word-break: break-all;">${window.blockchainHash}</code><br><br>
-                 Если изменения легитимны, координатор должен отправить новый хеш в контракт.
+                 ⚠️ ДАННЫЕ ИЗМЕНЕНЫ!<br>
+                 Текущий хеш: ${currentDataHash}<br>
+                 Хеш в блокчейне: ${window.blockchainHash}
              </div>`;
-             addDebugLog('⚠️ Ручная верификация не пройдена: хеши не совпадают');
          }
      }
      
@@ -687,44 +880,16 @@
          return div.innerHTML;
      }
      
-     // Функция для координатора (вычисление хеша в консоли)
-     window.calculateHash = async function() {
-         try {
-             addDebugLog('Вычисление хеша таблицы...');
-             const response = await fetch(CSV_URL);
-             const csvText = await response.text();
-             const hash = await sha256(csvText);
-             console.log('📊 Хеш таблицы:', hash);
-             addDebugLog(`Хеш таблицы: ${hash}`);
-             alert('Хеш таблицы: ' + hash + '\n\nОтправьте этот хеш в контракт через Remix (функция storeHash)');
-             return hash;
-         } catch (error) {
-             console.error('Ошибка:', error);
-             addDebugLog(`Ошибка вычисления хеша: ${error.message}`, true);
-             alert('Ошибка при вычислении хеша');
-         }
-     };
-     
      // Запуск
      async function init() {
-         addDebugLog('🚀 Инициализация приложения...');
-         const blockchainReady = await initBlockchain();
+         addDebugLog('🚀 Запуск приложения...');
+         await initBlockchain();
          await loadData();
-         
-         if (!blockchainReady) {
-             addDebugLog('⚠️ Работа в режиме офлайн (только просмотр таблицы)');
-         }
-         
-         addDebugLog('✅ Инициализация завершена');
+         addDebugLog('✅ Готово');
      }
      
      init();
-     
-     // Автообновление каждые 5 минут
-     setInterval(() => {
-         addDebugLog('🔄 Автообновление данных...');
-         loadData();
-     }, 300000);
+     setInterval(() => loadData(), 300000);
  </script>
 </body>
 </html>
