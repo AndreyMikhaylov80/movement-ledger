@@ -528,7 +528,81 @@ async function loadData() {
          div.textContent = text;
          return div.innerHTML;
      }
-     
+// Функция для обновления хеша в блокчейне (без Remix)
+async function updateHashInBlockchain() {
+    // Проверяем, есть ли Web3 и MetaMask
+    if (typeof window.ethereum === 'undefined') {
+        alert('❌ MetaMask не установлен! Установите расширение MetaMask.');
+        return;
+    }
+    
+    // Проверяем, есть ли данные для отправки
+    if (!currentDataHash) {
+        alert('❌ Сначала загрузите данные. Нажмите "Проверить данные"');
+        return;
+    }
+    
+    try {
+        // Запрашиваем доступ к аккаунту
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const userAddress = accounts[0];
+        
+        // Получаем владельца контракта
+        const ownerAddress = await contract.methods.owner().call();
+        
+        // Проверяем, что пользователь — владелец
+        if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+            alert('❌ Только владелец контракта может обновлять хеш!');
+            return;
+        }
+        
+        // Подготавливаем транзакцию
+        const txData = contract.methods.storeHash(currentDataHash).encodeABI();
+        
+        // Отправляем транзакцию
+        const tx = {
+            from: userAddress,
+            to: CONTRACT_ADDRESS,
+            data: txData,
+            gas: await contract.methods.storeHash(currentDataHash).estimateGas({ from: userAddress })
+        };
+        
+        // Подписываем и отправляем через MetaMask
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [tx]
+        });
+        
+        alert(`✅ Транзакция отправлена!\nHash: ${txHash}\n\nОжидайте подтверждения...`);
+        
+        // Ждём подтверждения
+        const receipt = await waitForTransaction(txHash);
+        if (receipt.status === '0x1') {
+            alert('✅ Хеш успешно обновлён в блокчейне!');
+            // Обновляем отображение
+            await loadHashFromBlockchain();
+        } else {
+            alert('❌ Транзакция не удалась');
+        }
+        
+    } catch (error) {
+        console.error('Ошибка:', error);
+        alert('❌ Ошибка: ' + (error.message || 'Не удалось отправить транзакцию'));
+    }
+}
+
+// Вспомогательная функция для ожидания подтверждения транзакции
+async function waitForTransaction(txHash) {
+    while (true) {
+        const receipt = await web3.eth.getTransactionReceipt(txHash);
+        if (receipt) return receipt;
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        console.log('Ожидание подтверждения...');
+    }
+}
+<button class="check-btn" onclick="updateHashInBlockchain()" style="background: #ff9800; margin-left: 10px;">
+    📤 Обновить хеш в блокчейне
+</button>
      // Функция для координатора (вычисление хеша в консоли)
      window.calculateHash = async function() {
          try {
