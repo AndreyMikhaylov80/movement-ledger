@@ -85,6 +85,18 @@
          font-size: 14px;
      }
      .check-btn:hover { background: #5a67d8; }
+     .update-btn {
+         background: #ff9800;
+         color: white;
+         border: none;
+         padding: 8px 16px;
+         border-radius: 6px;
+         cursor: pointer;
+         margin-top: 10px;
+         margin-left: 10px;
+         font-size: 14px;
+     }
+     .update-btn:hover { background: #e68900; }
      .hash-box {
          background: #2d3748;
          color: #68d391;
@@ -149,6 +161,7 @@
          <p><strong>Статус:</strong> <span id="statusBadge">Проверка...</span></p>
          <p class="blockchain-info" id="txInfo"></p>
          <button class="check-btn" onclick="verifyWithBlockchain()">🔄 Проверить данные</button>
+         <button class="update-btn" id="updateHashBtn" onclick="updateHashInBlockchain()" style="display: none;">📤 Обновить хеш в блокчейне</button>
          <div id="verifyResult"></div>
      </div>
      
@@ -167,12 +180,10 @@
 
  <script>
      // ==================== НАСТРОЙКИ ====================
-     // ЗАМЕНИТЕ ЭТИ ЗНАЧЕНИЯ НА ВАШИ!
      
-     const CONTRACT_ADDRESS = '0xd9145CCE52D386f254917e481eB44e9943F39138';  // Адрес вашего контракта
-     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQXbpVdotk7ozRTqwZeiTFvZLh1lYplgyJHHt1MwkZjRhQdMHP3tcVvmeBY8DlpzMoc-YUxheclPSGN/pub?gid=0&single=true&output=csv';  // Ссылка на CSV
+     const CONTRACT_ADDRESS = '0xd9145CCE52D386f254917e481eB44e9943F39138';
+     const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQXbpVdotk7ozRTqwZeiTFvZLh1lYplgyJHHt1MwkZjRhQdMHP3tcVvmeBY8DlpzMoc-YUxheclPSGN/pub?gid=0&single=true&output=csv';
      
-     // ABI контракта (скопируйте из Remix)
      const CONTRACT_ABI = [
 	{
 		"inputs": [
@@ -252,6 +263,7 @@
      let web3;
      let contract;
      let currentDataHash = null;
+     let contractOwner = null;
      
      // Функция вычисления SHA-256
      async function sha256(message) {
@@ -264,23 +276,29 @@
      
      // Подключение к Polygon
      async function initBlockchain() {
-         // Проверяем, есть ли Web3
          if (typeof window.ethereum !== 'undefined') {
              web3 = new Web3(window.ethereum);
              try {
-                 // Запрашиваем доступ к аккаунту (только для чтения)
                  await window.ethereum.request({ method: 'eth_accounts' });
+                 
+                 // Получаем владельца контракта
+                 contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+                 contractOwner = await contract.methods.owner().call();
+                 console.log('Владелец контракта:', contractOwner);
+                 
+                 // Проверяем, авторизован ли текущий пользователь как владелец
+                 const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                 if (accounts.length > 0 && accounts[0].toLowerCase() === contractOwner.toLowerCase()) {
+                     document.getElementById('updateHashBtn').style.display = 'inline-block';
+                 }
              } catch (error) {
                  console.log('Пользователь не авторизован, но чтение контракта должно работать');
              }
          } else {
-             // Если нет MetaMask, используем публичный RPC
              web3 = new Web3('https://polygon-rpc.com');
          }
          
          contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
-         
-         // Загружаем хеш из контракта
          await loadHashFromBlockchain();
      }
      
@@ -290,7 +308,6 @@
              const hashBytes32 = await contract.methods.lastHash().call();
              console.log('Хеш из блокчейна (bytes32):', hashBytes32);
              
-             // Преобразуем bytes32 в строку с 0x
              let blockchainHash = hashBytes32;
              if (blockchainHash && blockchainHash !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
                  window.blockchainHash = blockchainHash;
@@ -308,6 +325,97 @@
              window.blockchainHash = null;
              return null;
          }
+     }
+     
+     // НОВАЯ ФУНКЦИЯ: Обновление хеша в блокчейне прямо с сайта
+     async function updateHashInBlockchain() {
+         if (typeof window.ethereum === 'undefined') {
+             alert('❌ MetaMask не установлен! Установите расширение MetaMask.');
+             return;
+         }
+         
+         if (!currentDataHash) {
+             alert('❌ Сначала загрузите данные. Нажмите "Проверить данные"');
+             return;
+         }
+         
+         try {
+             // Запрашиваем доступ к аккаунту
+             const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+             const userAddress = accounts[0];
+             
+             // Проверяем, что пользователь — владелец контракта
+             if (userAddress.toLowerCase() !== contractOwner.toLowerCase()) {
+                 alert('❌ Только владелец контракта может обновлять хеш!');
+                 return;
+             }
+             
+             // Подтверждение
+             const confirmMsg = `Вы собираетесь отправить в блокчейн новый хеш:\n${currentDataHash}\n\nПродолжить?`;
+             if (!confirm(confirmMsg)) return;
+             
+             // Подготавливаем транзакцию
+             const txData = contract.methods.storeHash(currentDataHash).encodeABI();
+             
+             // Получаем газ
+             const gasEstimate = await contract.methods.storeHash(currentDataHash).estimateGas({ from: userAddress });
+             const gasLimit = Math.floor(gasEstimate * 1.2); // Добавляем 20% запаса
+             
+             const tx = {
+                 from: userAddress,
+                 to: CONTRACT_ADDRESS,
+                 data: txData,
+                 gas: web3.utils.toHex(gasLimit)
+             };
+             
+             // Отправляем транзакцию через MetaMask
+             const txHash = await window.ethereum.request({
+                 method: 'eth_sendTransaction',
+                 params: [tx]
+             });
+             
+             const resultDiv = document.getElementById('verifyResult');
+             resultDiv.innerHTML = `<div class="success">
+                 ⏳ Транзакция отправлена!<br>
+                 Hash: <code>${txHash}</code><br>
+                 Ожидайте подтверждения...
+             </div>`;
+             
+             // Ждём подтверждения
+             const receipt = await waitForTransaction(txHash);
+             if (receipt && receipt.status) {
+                 resultDiv.innerHTML = `<div class="success">
+                     ✅ Хеш успешно обновлён в блокчейне!<br>
+                     <a href="https://polygonscan.com/tx/${txHash}" target="_blank">Посмотреть транзакцию на PolygonScan</a>
+                 </div>`;
+                 // Обновляем отображение
+                 await loadHashFromBlockchain();
+                 if (currentDataHash === window.blockchainHash) {
+                     document.getElementById('statusBadge').innerHTML = '<span class="hash-status verified">✅ ВЕРИФИЦИРОВАНО (данные совпадают с блокчейном)</span>';
+                 }
+             } else {
+                 resultDiv.innerHTML = `<div class="fail">❌ Транзакция не удалась</div>`;
+             }
+             
+         } catch (error) {
+             console.error('Ошибка:', error);
+             document.getElementById('verifyResult').innerHTML = `<div class="fail">❌ Ошибка: ${error.message || 'Не удалось отправить транзакцию'}</div>`;
+         }
+     }
+     
+     // Вспомогательная функция для ожидания подтверждения транзакции
+     async function waitForTransaction(txHash) {
+         let attempts = 0;
+         const maxAttempts = 60; // максимум 2 минуты (60 * 2 сек)
+         
+         while (attempts < maxAttempts) {
+             const receipt = await web3.eth.getTransactionReceipt(txHash);
+             if (receipt) return receipt;
+             await new Promise(resolve => setTimeout(resolve, 2000));
+             attempts++;
+             console.log(`Ожидание подтверждения... (${attempts}/${maxAttempts})`);
+         }
+         return null;
      }
      
 // Загрузка CSV данных
@@ -428,7 +536,7 @@ async function loadData() {
     html += '<th>ID</th><th>Участник</th><th>Дата</th><th>Описание</th>';
     html += '<th>E</th><th>W</th><th>J</th><th>S</th><th>C</th>';
     html += '<th>Ссылка на подтверждение</th><th>Дата верификации</th><th>Рейтинг</th>';
-    html += '</tr></thead><tbody>';
+    html += '</table></thead><tbody>';
     
     data.slice(0, 100).forEach(item => {
         // Форматируем RATE
@@ -497,9 +605,7 @@ async function loadData() {
              resultDiv.innerHTML = `<div class="fail">
                  ⚠️ Хеш не установлен в смарт-контракте!<br><br>
                  <strong>Для координатора:</strong><br>
-                 1. Вычислите хеш таблицы (нажмите F12 и введите calculateHash())<br>
-                 2. Отправьте его в контракт через Remix (функция storeHash)<br>
-                 3. Обновите страницу
+                 Нажмите кнопку "Обновить хеш в блокчейне"
              </div>`;
              return;
          }
@@ -517,7 +623,7 @@ async function loadData() {
                  <code style="font-size: 10px; word-break: break-all;">${currentDataHash}</code><br><br>
                  <strong>Хеш в блокчейне Polygon:</strong><br>
                  <code style="font-size: 10px; word-break: break-all;">${window.blockchainHash}</code><br><br>
-                 Если изменения легитимны, координатор должен отправить новый хеш в контракт.
+                 Нажмите кнопку "Обновить хеш в блокчейне", чтобы зафиксировать изменения.
              </div>`;
          }
      }
@@ -536,7 +642,7 @@ async function loadData() {
              const csvText = await response.text();
              const hash = await sha256(csvText);
              console.log('📊 Хеш таблицы:', hash);
-             alert('Хеш таблицы: ' + hash + '\n\nОтправьте этот хеш в контракт через Remix (функция storeHash)');
+             alert('Хеш таблицы: ' + hash + '\n\nНажмите кнопку "Обновить хеш в блокчейне"');
              return hash;
          } catch (error) {
              console.error('Ошибка:', error);
