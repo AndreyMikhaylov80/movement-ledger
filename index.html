@@ -131,40 +131,6 @@
          overflow-x: auto;
          margin-top: 20px;
      }
-     .debug-panel {
-         background: #1a1a2e;
-         color: #0f0;
-         padding: 10px;
-         margin: 10px 20px;
-         border-radius: 6px;
-         font-family: monospace;
-         font-size: 11px;
-         max-height: 200px;
-         overflow-y: auto;
-         display: none;
-     }
-     .debug-panel.show {
-         display: block;
-     }
-     .debug-toggle {
-         background: #333;
-         color: white;
-         border: none;
-         padding: 4px 10px;
-         border-radius: 4px;
-         cursor: pointer;
-         font-size: 11px;
-         margin-left: 10px;
-     }
-     .status-badge {
-         display: inline-block;
-         padding: 2px 8px;
-         border-radius: 12px;
-         font-size: 11px;
-         margin-left: 8px;
-     }
-     .status-online { background: #4caf50; color: white; }
-     .status-offline { background: #f44336; color: white; }
      .coordinator-note {
          background: #e3f2fd;
          border-left: 4px solid #2196f3;
@@ -192,7 +158,6 @@
      }
  </style>
  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
- <script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2.0.0/encoding.min.js"></script>
 </head>
 <body>
  <div class="container">
@@ -234,12 +199,6 @@
      <div class="footer">
          <p>✅ Данные защищены блокчейном Ethereum. Любое изменение таблицы будет обнаружено.</p>
          <p>📅 Последнее обновление таблицы: <span id="lastUpdate">-</span></p>
-         <button class="debug-toggle" onclick="toggleDebug()">🐛 Показать отладку</button>
-     </div>
-     
-     <div id="debugPanel" class="debug-panel">
-         <strong>📋 Лог отладки:</strong><br>
-         <div id="debugLog"></div>
      </div>
  </div>
 
@@ -247,13 +206,6 @@
      // ==================== НАСТРОЙКИ ====================
      const CONTRACT_ADDRESS = '0xA9707030393c7a0761D0Cc4a3b8Dc084C142Bb1F';
      const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQXbpVdotk7ozRTqwZeiTFvZLh1lYplgyJHHt1MwkZjRhQdMHP3tcVvmeBY8DlpzMoc-YUxheclPSGN/pub?gid=1565566026&single=true&output=csv';
-     
-     const RPC_ENDPOINTS = [
-         'https://eth.llamarpc.com',
-         'https://rpc.ankr.com/eth',
-         'https://ethereum.publicnode.com',
-         'https://cloudflare-eth.com'
-     ];
      
      const CONTRACT_ABI = [
          {"inputs":[{"internalType":"bytes32","name":"_hash","type":"bytes32"}],"name":"storeHash","outputs":[],"stateMutability":"nonpayable","type":"function"},
@@ -268,67 +220,32 @@
      let contract;
      let currentDataHash = null;
      
-     function addDebugLog(message, isError = false) {
-         const debugDiv = document.getElementById('debugLog');
-         const timestamp = new Date().toLocaleTimeString();
-         const logEntry = `[${timestamp}] ${message}\n`;
-         if (debugDiv) {
-             debugDiv.innerHTML += logEntry;
-             debugDiv.scrollTop = debugDiv.scrollHeight;
-         }
-         if (isError) console.error(message);
-         else console.log(message);
-     }
-     
-     function toggleDebug() {
-         const panel = document.getElementById('debugPanel');
-         const btn = document.querySelector('.debug-toggle');
-         panel.classList.toggle('show');
-         btn.textContent = panel.classList.contains('show') ? '🔒 Скрыть отладку' : '🐛 Показать отладку';
-     }
-     
-     function updateNetworkStatus(connected, message = '') {
-         const statusSpan = document.getElementById('networkStatus');
-         statusSpan.innerHTML = connected ? 
-             '<span class="status-badge status-online">🟢 Ethereum Mainnet</span>' : 
-             `<span class="status-badge status-offline">🔴 ${message}</span>`;
-     }
-     
+     // Функция вычисления SHA-256
      async function sha256(message) {
          const msgBuffer = new TextEncoder().encode(message);
          const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
          const hashArray = Array.from(new Uint8Array(hashBuffer));
-         return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+         const hashHex = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+         return hashHex;
      }
      
+     // Подключение к Ethereum
      async function initBlockchain() {
-         addDebugLog('Инициализация подключения к Ethereum...');
+         console.log('Инициализация подключения к Ethereum...');
          
-         for (let i = 0; i < RPC_ENDPOINTS.length; i++) {
-             const rpcUrl = RPC_ENDPOINTS[i];
+         // Пробуем использовать MetaMask если есть
+         if (typeof window.ethereum !== 'undefined') {
+             web3 = new Web3(window.ethereum);
              try {
-                 addDebugLog(`Пробуем RPC #${i+1}: ${rpcUrl.substring(0, 50)}...`);
-                 const testWeb3 = new Web3(rpcUrl);
-                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Таймаут')), 8000));
-                 const listeningPromise = testWeb3.eth.net.isListening();
-                 await Promise.race([listeningPromise, timeoutPromise]);
-                 
-                 const chainId = await testWeb3.eth.getChainId();
-                 if (chainId === 1) {
-                     web3 = testWeb3;
-                     addDebugLog(`✅ Подключено к Ethereum`);
-                     updateNetworkStatus(true);
-                     break;
-                 }
+                 await window.ethereum.request({ method: 'eth_accounts' });
+                 console.log('MetaMask подключен');
              } catch (error) {
-                 addDebugLog(`Ошибка: ${error.message}`, true);
+                 console.log('Нет доступа к аккаунту');
              }
-         }
-         
-         if (!web3) {
-             addDebugLog('❌ Не удалось подключиться', true);
-             updateNetworkStatus(false, 'Нет подключения');
-             return false;
+         } else {
+             // Используем публичный RPC
+             web3 = new Web3('https://eth.llamarpc.com');
+             console.log('Используется публичный RPC');
          }
          
          try {
@@ -337,20 +254,22 @@
              if (code === '0x' || code === '0x0') {
                  throw new Error('Контракт не найден');
              }
-             addDebugLog(`✅ Контракт найден: ${CONTRACT_ADDRESS}`);
+             console.log('Контракт найден');
+             document.getElementById('networkStatus').innerHTML = '<span class="status-badge status-online">🟢 Ethereum Mainnet</span>';
              await loadHashFromBlockchain();
              return true;
          } catch (error) {
-             addDebugLog(`Ошибка: ${error.message}`, true);
+             console.error('Ошибка подключения:', error);
+             document.getElementById('networkStatus').innerHTML = '<span class="status-badge status-offline">🔴 Ошибка подключения</span>';
              return false;
          }
      }
      
+     // Загрузка хеша из блокчейна
      async function loadHashFromBlockchain() {
-         if (!contract) return null;
          try {
-             addDebugLog('Загрузка хеша из контракта...');
              const hashBytes32 = await contract.methods.lastHash().call();
+             console.log('Хеш из блокчейна:', hashBytes32);
              
              if (hashBytes32 && hashBytes32 !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
                  window.blockchainHash = hashBytes32;
@@ -363,239 +282,231 @@
                  return null;
              }
          } catch (error) {
-             addDebugLog(`Ошибка: ${error.message}`, true);
+             console.error('Ошибка чтения из блокчейна:', error);
+             document.getElementById('storedHash').textContent = '❌ Ошибка подключения к Ethereum';
+             window.blockchainHash = null;
              return null;
          }
      }
      
+     // Парсинг CSV (простой, но эффективный)
      function parseCSV(csvText) {
          const rows = [];
-         const regex = /(?:,|\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^",\n]*))/g;
-         let row = [], match;
+         const lines = csvText.split(/\r?\n/);
          
-         while (match = regex.exec(csvText)) {
-             if (match[0].startsWith(',')) { row.push(''); continue; }
-             if (match[0].startsWith('\n')) {
-                 if (row.length > 0) { rows.push(row); row = []; }
-                 continue;
+         for (let line of lines) {
+             if (line.trim() === '') continue;
+             
+             const row = [];
+             let inQuotes = false;
+             let currentCell = '';
+             
+             for (let i = 0; i < line.length; i++) {
+                 const char = line[i];
+                 
+                 if (char === '"') {
+                     if (inQuotes && line[i+1] === '"') {
+                         currentCell += '"';
+                         i++;
+                     } else {
+                         inQuotes = !inQuotes;
+                     }
+                 } else if (char === ',' && !inQuotes) {
+                     row.push(currentCell.trim());
+                     currentCell = '';
+                 } else {
+                     currentCell += char;
+                 }
              }
-             let value = match[1] !== undefined ? match[1].replace(/""/g, '"') : match[2];
-             row.push(value);
-             if (match[0].endsWith('\n')) { rows.push(row); row = []; }
+             row.push(currentCell.trim());
+             rows.push(row);
          }
-         if (row.length > 0) rows.push(row);
+         
          return rows;
      }
      
-async function loadData() {
-    try {
-        addDebugLog('Загрузка CSV...');
-        const response = await fetch(CSV_URL);
-        
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        // Получаем массив байтов для перекодировки
-        const arrayBuffer = await response.arrayBuffer();
-        
-       // Декодируем с помощью encoding.js
-let csvText;
-try {
-    // Конвертируем из SJIS (Shift-JIS) или Windows-1251 в UTF-8
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const convertedArray = Encoding.convert(uint8Array, 'UTF8', 'SJIS');
-    csvText = Encoding.codeToString(convertedArray);
-    addDebugLog('✅ Декодировано через Encoding.js (SJIS -> UTF8)');
-    
-    // Проверяем, нет ли кракозябр (если есть русские буквы в виде ? или �)
-    if (csvText.includes('�') || (csvText.match(/[А-Яа-я]/) === null && csvText.length > 100)) {
-        // Пробуем Windows-1251
-        const convertedArray2 = Encoding.convert(uint8Array, 'UTF8', 'WINDOWS-1251');
-        csvText = Encoding.codeToString(convertedArray2);
-        addDebugLog('✅ Переключились на Windows-1251');
-    }
-} catch (e) {
-    addDebugLog(`Ошибка декодирования: ${e.message}, пробуем UTF-8`);
-    const decoder = new TextDecoder('utf-8');
-    csvText = decoder.decode(arrayBuffer);
-}
-        
-        addDebugLog(`CSV получен, длина: ${csvText.length} символов`);
-        addDebugLog(`Первые 300 символов: ${csvText.substring(0, 300)}`);
-        
-        // Парсим CSV с учётом кавычек и переносов
-        const rows = parseCSV(csvText);
-        
-        addDebugLog(`Найдено строк: ${rows.length}`);
-        
-        if (rows.length < 2) {
-            document.getElementById('tableContainer').innerHTML = '<div class="loading-text">📭 Пока нет деяний</div>';
-            return [];
-        }
-        
-        addDebugLog(`Заголовки (${rows[0].length} колонок): ${rows[0].slice(0, 15).join(', ')}...`);
-        
-        // Выводим первую строку данных для отладки
-        if (rows[1]) {
-            addDebugLog(`Первая запись: ${rows[1].slice(0, 10).join(', ')}...`);
-        }
-        
-        const data = [];
-        
-        // Пропускаем заголовок (строка 0)
-        for (let i = 1; i < rows.length; i++) {
-            const cols = rows[i];
-            
-            // Минимум нужно 6 колонок (ID, код, имя, дата, описание, и т.д.)
-            if (cols.length < 6) {
-                addDebugLog(`Строка ${i} пропущена (мало колонок: ${cols.length})`);
-                continue;
-            }
-            
-            // Очищаем значения от лишних кавычек и пробелов
-            const clean = (val) => {
-                if (!val) return '';
-                return String(val).replace(/^["']|["']$/g, '').trim();
-            };
-            
-            const id = clean(cols[0]);
-            const code = clean(cols[1]);     // 00419
-            const name = clean(cols[2]);       // Амир
-            const date = clean(cols[3]);       // 28.03.2026
-            const description = clean(cols[4]); // Регистрация
-            
-            // Баллы находятся в колонках 5-9 (индексы 5,6,7,8,9)
-            const e = clean(cols[5]) || '0';
-            const w = clean(cols[6]) || '0';
-            const j = clean(cols[7]) || '0';
-            const s = clean(cols[8]) || '0';
-            const c = clean(cols[9]) || '0';
-            
-            // Ссылка может быть в колонке 10 или позже
-            let url = '';
-            for (let k = 10; k < Math.min(cols.length, 20); k++) {
-                const val = clean(cols[k]);
-                if (val.startsWith('http://') || val.startsWith('https://')) {
-                    url = val;
-                    break;
-                }
-            }
-            
-            // Дата верификации (ищем дату в формате DD.MM.YYYY или число)
-            let dateVer = '';
-            for (let k = 10; k < Math.min(cols.length, 20); k++) {
-                const val = clean(cols[k]);
-                if (/^\d{1,2}\.\d{1,2}\.\d{2,4}$/.test(val) || /^\d{5}$/.test(val)) {
-                    if (val !== date && !val.startsWith('http')) {
-                        dateVer = val;
-                        break;
-                    }
-                }
-            }
-            
-            // Рейтинг — ищем число с запятой или точкой (например "1,430969081" или "3,727919273")
-            let rateValue = 0;
-            for (let k = 10; k < Math.min(cols.length, 25); k++) {
-                const val = clean(cols[k]);
-                // Проверяем, похоже на число с плавающей точкой
-                if (/^\d+[.,]\d+$/.test(val) && !val.includes('http')) {
-                    rateValue = parseFloat(val.replace(',', '.')) || 0;
-                    break;
-                }
-            }
-            
-            // Если рейтинг не найден, считаем сумму баллов
-            if (rateValue === 0) {
-                rateValue = (parseFloat(e) || 0) + (parseFloat(w) || 0) + 
-                           (parseFloat(j) || 0) + (parseFloat(s) || 0) + 
-                           (parseFloat(c) || 0);
-            }
-            
-            data.push({
-                id: id,
-                code: code,
-                name: name,
-                date: date,
-                description: description,
-                points: {
-                    E: e, W: w, J: j, S: s, C: c,
-                    URL: url, 
-                    DATE_VER: dateVer, 
-                    RATE: rateValue
-                }
-            });
-        }
-        
-        addDebugLog(`✅ Обработано записей: ${data.length}`);
-        
-        if (data.length === 0) {
-            document.getElementById('tableContainer').innerHTML = '<div class="loading-text">⚠️ Нет данных для отображения. Проверьте формат CSV.</div>';
-            return [];
-        }
-        
-        // Показываем первые 3 записи в консоли для отладки
-        console.log('Первые 3 записи:', data.slice(0, 3));
-        
-        displayTable(data);
-        document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
-        
-        const dataString = JSON.stringify(data);
-        currentDataHash = await sha256(dataString);
-        
-        document.getElementById('currentHashDisplay').innerHTML = `<strong>📊 Текущий хеш таблицы:</strong><br>${currentDataHash}`;
-        
-        if (window.blockchainHash) {
-            updateVerificationStatus(currentDataHash, window.blockchainHash);
-        }
-        
-        return data;
-    } catch (error) {
-        addDebugLog(`❌ Ошибка загрузки: ${error.message}`, true);
-        console.error(error);
-        document.getElementById('tableContainer').innerHTML = `<div class="loading-text">❌ Ошибка: ${error.message}<br><br>🔍 Включите отладку для деталей</div>`;
-        return [];
-    }
-}
-    
-function displayTable(data) {
-    if (!data || data.length === 0) {
-        document.getElementById('tableContainer').innerHTML = '<div class="loading-text">📭 Пока нет деяний</div>';
-        return;
-    }
-    
-    let html = '<div class="table-wrapper"><table><thead><tr>';
-    html += '<th>ID</th><th>Код</th><th>Участник</th><th>Дата</th><th>Описание</th>';
-    html += '<th>E</th><th>W</th><th>J</th><th>S</th><th>C</th>';
-    html += '<th>Ссылка</th><th>Дата верификации</th><th>Рейтинг</th>';
-    html += '</tr></thead><tbody>';
-    
-    data.slice(0, 100).forEach(item => {
-        let rateDisplay = typeof item.points.RATE === 'number' && !isNaN(item.points.RATE) && item.points.RATE !== 0 
-            ? item.points.RATE.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })
-            : '0';
-        
-        html += `<tr>
-            <td>${escapeHtml(String(item.id))}</td>
-            <td>${escapeHtml(item.code || '')}</td>
-            <td>${escapeHtml(item.name)}</td>
-            <td>${escapeHtml(item.date)}</td>
-            <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.description)}</td>
-            <td>${escapeHtml(String(item.points.E))}</td>
-            <td>${escapeHtml(String(item.points.W))}</td>
-            <td>${escapeHtml(String(item.points.J))}</td>
-            <td>${escapeHtml(String(item.points.S))}</td>
-            <td>${escapeHtml(String(item.points.C))}</td>
-            <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.points.URL)}</td>
-            <td>${escapeHtml(item.points.DATE_VER)}</td>
-            <td class="rate-value">${rateDisplay}</td>
-        </tr>`;
-    });
-    
-    html += '</tbody></table></div>';
-    if (data.length > 100) html += `<p style="margin-top: 10px; color: #999;">Показаны первые 100 записей из ${data.length}</p>`;
-    
-    document.getElementById('tableContainer').innerHTML = html;
-}
-  
+     // Загрузка CSV данных
+     async function loadData() {
+         try {
+             console.log('Загрузка CSV...');
+             const response = await fetch(CSV_URL);
+             const csvText = await response.text();
+             
+             console.log('CSV получен, длина:', csvText.length);
+             console.log('Первые 200 символов:', csvText.substring(0, 200));
+             
+             // Парсим CSV
+             const rows = parseCSV(csvText);
+             
+             if (rows.length < 2) {
+                 document.getElementById('tableContainer').innerHTML = '<div class="loading-text">📭 Пока нет деяний</div>';
+                 return [];
+             }
+             
+             console.log('Найдено строк:', rows.length);
+             console.log('Заголовки:', rows[0]);
+             
+             const data = [];
+             
+             // Пропускаем заголовок (строка 0)
+             for (let i = 1; i < rows.length; i++) {
+                 const cols = rows[i];
+                 
+                 // Минимум 5 колонок нужно
+                 if (cols.length < 5) {
+                     console.log(`Строка ${i} пропущена (мало колонок: ${cols.length})`);
+                     continue;
+                 }
+                 
+                 // Очищаем значения от кавычек
+                 const clean = (val) => {
+                     if (!val) return '';
+                     return String(val).replace(/^["']|["']$/g, '').trim();
+                 };
+                 
+                 // Определяем колонки (индексы могут отличаться, подстраиваемся)
+                 const id = clean(cols[0]);
+                 const name = clean(cols[1]);
+                 const date = clean(cols[2]);
+                 const description = clean(cols[3]);
+                 
+                 // Баллы (колонки 4-8)
+                 const e = clean(cols[4]) || '0';
+                 const w = cols[5] ? clean(cols[5]) : '0';
+                 const j = cols[6] ? clean(cols[6]) : '0';
+                 const s = cols[7] ? clean(cols[7]) : '0';
+                 const c = cols[8] ? clean(cols[8]) : '0';
+                 
+                 // Ссылка (колонка 9)
+                 let url = '';
+                 if (cols[9]) {
+                     url = clean(cols[9]);
+                     if (!url.startsWith('http')) url = '';
+                 }
+                 
+                 // Дата верификации (колонка 10)
+                 let dateVer = '';
+                 if (cols[10]) {
+                     dateVer = clean(cols[10]);
+                 }
+                 
+                 // Рейтинг (ищем в колонках 11-20)
+                 let rateValue = 0;
+                 for (let k = 11; k < Math.min(cols.length, 21); k++) {
+                     const val = clean(cols[k]);
+                     if (val && !isNaN(parseFloat(val.replace(',', '.')))) {
+                         const testNum = parseFloat(val.replace(',', '.'));
+                         if (!isNaN(testNum) && testNum > 0) {
+                             rateValue = testNum;
+                             break;
+                         }
+                     }
+                 }
+                 
+                 // Если рейтинг не найден, считаем сумму баллов
+                 if (rateValue === 0) {
+                     rateValue = (parseFloat(e) || 0) + (parseFloat(w) || 0) + 
+                                (parseFloat(j) || 0) + (parseFloat(s) || 0) + 
+                                (parseFloat(c) || 0);
+                 }
+                 
+                 data.push({
+                     id: id,
+                     name: name,
+                     date: date,
+                     description: description,
+                     points: {
+                         E: e,
+                         W: w,
+                         J: j,
+                         S: s,
+                         C: c,
+                         URL: url,
+                         DATE_VER: dateVer,
+                         RATE: rateValue
+                     }
+                 });
+             }
+             
+             console.log(`Обработано записей: ${data.length}`);
+             if (data.length > 0) {
+                 console.log('Первая запись:', data[0]);
+             }
+             
+             if (data.length === 0) {
+                 document.getElementById('tableContainer').innerHTML = '<div class="loading-text">⚠️ Нет данных для отображения</div>';
+                 return [];
+             }
+             
+             displayTable(data);
+             document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+             
+             // Вычисляем хеш данных
+             const dataString = JSON.stringify(data);
+             currentDataHash = await sha256(dataString);
+             
+             document.getElementById('currentHashDisplay').innerHTML = `<strong>📊 Текущий хеш таблицы:</strong><br>${currentDataHash}`;
+             
+             // Сравниваем с хешем из блокчейна
+             if (window.blockchainHash) {
+                 updateVerificationStatus(currentDataHash, window.blockchainHash);
+             }
+             
+             return data;
+         } catch (error) {
+             console.error('Ошибка загрузки CSV:', error);
+             document.getElementById('tableContainer').innerHTML = 
+                 '<div class="loading-text">❌ Ошибка загрузки данных. Проверьте ссылку на CSV файл</div>';
+             return [];
+         }
+     }
+     
+     function displayTable(data) {
+         if (!data || data.length === 0) {
+             document.getElementById('tableContainer').innerHTML = '<div class="loading-text">📭 Пока нет деяний</div>';
+             return;
+         }
+         
+         let html = '<div class="table-wrapper"><table><thead><tr>';
+         html += '<th>ID</th><th>Участник</th><th>Дата</th><th>Описание</th>';
+         html += '<th>E</th><th>W</th><th>J</th><th>S</th><th>C</th>';
+         html += '<th>Ссылка на подтверждение</th><th>Дата верификации</th><th>Рейтинг</th>';
+         html += '</tr></thead><tbody>';
+         
+         data.slice(0, 100).forEach(item => {
+             let rateDisplay = '0';
+             const rateValue = item.points.RATE;
+             if (typeof rateValue === 'number' && !isNaN(rateValue) && rateValue !== 0) {
+                 rateDisplay = rateValue.toLocaleString('ru-RU', {
+                     minimumFractionDigits: 2,
+                     maximumFractionDigits: 4
+                 });
+             }
+             
+             html += `<tr>
+                 <td>${escapeHtml(String(item.id))}</td>
+                 <td>${escapeHtml(item.name)}</td>
+                 <td>${escapeHtml(item.date)}</td>
+                 <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.description)}</td>
+                 <td>${escapeHtml(String(item.points.E))}</td>
+                 <td>${escapeHtml(String(item.points.W))}</td>
+                 <td>${escapeHtml(String(item.points.J))}</td>
+                 <td>${escapeHtml(String(item.points.S))}</td>
+                 <td>${escapeHtml(String(item.points.C))}</td>
+                 <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.points.URL)}</td>
+                 <td>${escapeHtml(item.points.DATE_VER)}</td>
+                 <td class="rate-value">${rateDisplay}</td>
+             </tr>`;
+         });
+         
+         html += '</tbody></table></div>';
+         if (data.length > 100) {
+             html += '<p style="margin-top: 10px; color: #999;">Показаны первые 100 записей из ' + data.length + '</p>';
+         }
+         
+         document.getElementById('tableContainer').innerHTML = html;
+     }
+     
      function updateVerificationStatus(currentHash, blockchainHash) {
          const statusSpan = document.getElementById('statusBadge');
          
@@ -645,7 +556,7 @@ function displayTable(data) {
                  <code style="font-size: 10px; word-break: break-all;">${currentDataHash}</code><br><br>
                  <strong>Хеш в блокчейне Ethereum:</strong><br>
                  <code style="font-size: 10px; word-break: break-all;">${window.blockchainHash}</code><br><br>
-                 Если изменения легитимны, координатор должен отправить новый хеш в контракт через Remix.
+                 Если изменения легитимны, координатор должен отправить новый хеш в контракт.
              </div>`;
          }
      }
@@ -666,15 +577,20 @@ function displayTable(data) {
          return div.innerHTML;
      }
      
+     // Запуск
      async function init() {
-         addDebugLog('🚀 Запуск приложения...');
+         console.log('🚀 Запуск приложения...');
          await initBlockchain();
          await loadData();
-         addDebugLog('✅ Инициализация завершена');
+         console.log('✅ Инициализация завершена');
      }
      
      init();
-     setInterval(() => loadData(), 300000);
+     
+     // Автообновление каждые 5 минут
+     setInterval(() => {
+         loadData();
+     }, 300000);
  </script>
 </body>
 </html>
