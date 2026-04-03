@@ -192,6 +192,7 @@
      }
  </style>
  <script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2.0.0/encoding.min.js"></script>
 </head>
 <body>
  <div class="container">
@@ -396,19 +397,27 @@ async function loadData() {
         // Получаем массив байтов для перекодировки
         const arrayBuffer = await response.arrayBuffer();
         
-        // Пробуем декодировать в Windows-1251
-        let csvText;
-        try {
-            // Используем TextDecoder для Windows-1251
-            const decoder = new TextDecoder('windows-1251');
-            csvText = decoder.decode(arrayBuffer);
-            addDebugLog('✅ Декодировано как Windows-1251');
-        } catch (e) {
-            // Fallback: пробуем UTF-8
-            const decoder = new TextDecoder('utf-8');
-            csvText = decoder.decode(arrayBuffer);
-            addDebugLog('⚠️ Декодировано как UTF-8');
-        }
+       // Декодируем с помощью encoding.js
+let csvText;
+try {
+    // Конвертируем из SJIS (Shift-JIS) или Windows-1251 в UTF-8
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const convertedArray = Encoding.convert(uint8Array, 'UTF8', 'SJIS');
+    csvText = Encoding.codeToString(convertedArray);
+    addDebugLog('✅ Декодировано через Encoding.js (SJIS -> UTF8)');
+    
+    // Проверяем, нет ли кракозябр (если есть русские буквы в виде ? или �)
+    if (csvText.includes('�') || (csvText.match(/[А-Яа-я]/) === null && csvText.length > 100)) {
+        // Пробуем Windows-1251
+        const convertedArray2 = Encoding.convert(uint8Array, 'UTF8', 'WINDOWS-1251');
+        csvText = Encoding.codeToString(convertedArray2);
+        addDebugLog('✅ Переключились на Windows-1251');
+    }
+} catch (e) {
+    addDebugLog(`Ошибка декодирования: ${e.message}, пробуем UTF-8`);
+    const decoder = new TextDecoder('utf-8');
+    csvText = decoder.decode(arrayBuffer);
+}
         
         addDebugLog(`CSV получен, длина: ${csvText.length} символов`);
         addDebugLog(`Первые 300 символов: ${csvText.substring(0, 300)}`);
