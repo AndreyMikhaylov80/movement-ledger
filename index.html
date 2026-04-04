@@ -191,6 +191,38 @@
      
      <div style="padding: 0 20px 20px 20px;">
          <h2>📊 Деяния участников</h2>
+      <!-- Блок фильтрации участников -->
+<div style="margin: 15px 0 20px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+    <div style="display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+            <label style="display: block; margin-bottom: 5px; font-size: 13px; color: #555; font-weight: 600;">
+                🔍 Поиск по имени участника
+            </label>
+            <input type="text" id="searchInput" placeholder="Введите имя участника..." 
+                   style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+        </div>
+        <div style="min-width: 150px;">
+            <label style="display: block; margin-bottom: 5px; font-size: 13px; color: #555; font-weight: 600;">
+                📊 Сортировка по рейтингу
+            </label>
+            <select id="sortSelect" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                <option value="default">Без сортировки</option>
+                <option value="rating-desc">Рейтинг (по убыванию)</option>
+                <option value="rating-asc">Рейтинг (по возрастанию)</option>
+                <option value="name-asc">Имя (А-Я)</option>
+                <option value="name-desc">Имя (Я-А)</option>
+            </select>
+        </div>
+        <div>
+            <button id="resetFilterBtn" style="padding: 8px 20px; background: #627eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                🗑️ Сбросить фильтр
+            </button>
+        </div>
+    </div>
+    <div id="filterStats" style="margin-top: 10px; font-size: 12px; color: #666;">
+        Показано: <span id="filteredCount">0</span> из <span id="totalCount">0</span> участников
+    </div>
+</div>
          <div id="tableContainer">
              <div class="loading-text">Загрузка данных из таблицы...</div>
          </div>
@@ -438,8 +470,26 @@
                  return [];
              }
              
-             displayTable(data);
-             document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
+             // Сохраняем оригинальные данные для фильтрации
+originalData = [...data];
+filteredData = [...data];
+
+// Отображаем полную таблицу (можно оставить displayTable или использовать фильтрацию)
+displayTable(data);
+
+// Обновляем статистику фильтрации
+document.getElementById('totalCount').textContent = originalData.length;
+document.getElementById('filteredCount').textContent = originalData.length;
+
+// Если есть активный поиск или сортировка, применяем их
+const searchInput = document.getElementById('searchInput');
+const sortSelect = document.getElementById('sortSelect');
+if ((searchInput && searchInput.value) || (sortSelect && sortSelect.value !== 'default')) {
+    const filtered = filterAndSortData();
+    displayFilteredTable(filtered);
+}
+
+document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
              
              // Вычисляем хеш данных
              const dataString = JSON.stringify(data);
@@ -591,6 +641,155 @@
      setInterval(() => {
          loadData();
      }, 300000);
+  // ==================== МОДУЛЬ ФИЛЬТРАЦИИ ====================
+// Глобальные переменные
+let originalData = [];      // Хранит оригинальные данные (без фильтрации)
+let filteredData = [];      // Хранит отфильтрованные данные
+
+// Функция фильтрации и сортировки данных
+function filterAndSortData() {
+    if (!originalData.length) return [];
+    
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    const sortBy = document.getElementById('sortSelect').value;
+    
+    // Шаг 1: Фильтрация по имени
+    let result = originalData.filter(item => {
+        if (!searchTerm) return true;
+        return item.name.toLowerCase().includes(searchTerm);
+    });
+    
+    // Шаг 2: Сортировка
+    result.sort((a, b) => {
+        switch(sortBy) {
+            case 'rating-desc':
+                return b.points.RATE - a.points.RATE;
+            case 'rating-asc':
+                return a.points.RATE - b.points.RATE;
+            case 'name-asc':
+                return a.name.localeCompare(b.name, 'ru');
+            case 'name-desc':
+                return b.name.localeCompare(a.name, 'ru');
+            default:
+                return 0;
+        }
+    });
+    
+    filteredData = result;
+    
+    // Обновляем статистику
+    document.getElementById('filteredCount').textContent = filteredData.length;
+    document.getElementById('totalCount').textContent = originalData.length;
+    
+    return result;
+}
+
+// Функция отображения ТОЛЬКО имени и рейтинга (компактный режим)
+function displayFilteredTable(data) {
+    if (!data || data.length === 0) {
+        document.getElementById('tableContainer').innerHTML = 
+            '<div class="loading-text">🔍 Участники не найдены</div>';
+        return;
+    }
+    
+    // Создаём компактную таблицу (только Имя и Рейтинг)
+    let html = '<div class="table-wrapper">';
+    html += '<table style="width: 100%;">';
+    html += '<thead><tr>';
+    html += '<th style="width: 60%;">👤 Участник</th>';
+    html += '<th style="width: 40%;">⭐ Рейтинг</th>';
+    html += '</tr></thead><tbody>';
+    
+    data.forEach(item => {
+        let rateDisplay = '0';
+        const rateValue = item.points.RATE;
+        if (typeof rateValue === 'number' && !isNaN(rateValue) && rateValue !== 0) {
+            rateDisplay = rateValue.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4
+            });
+        }
+        
+        html += `<tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                <strong>${escapeHtml(item.name)}</strong>
+            </td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;" class="rate-value">
+                ${rateDisplay}
+            </td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    
+    // Показываем количество найденных участников
+    if (data.length > 0) {
+        html += `<p style="margin-top: 10px; font-size: 12px; color: #666;">
+            📊 Найдено участников: ${data.length}
+        </p>`;
+    }
+    
+    document.getElementById('tableContainer').innerHTML = html;
+}
+
+// Модифицируем существующую функцию loadData для сохранения оригинальных данных
+// Нужно найти функцию loadData и добавить в неё эти строки:
+
+// ВНЕСИТЕ ИЗМЕНЕНИЯ В ФУНКЦИЮ loadData:
+// Найдите в существующем коде строку: displayTable(data);
+// И добавьте после неё:
+
+/*
+// Сохраняем оригинальные данные для фильтрации
+originalData = [...data];
+filteredData = [...data];
+document.getElementById('totalCount').textContent = originalData.length;
+document.getElementById('filteredCount').textContent = originalData.length;
+
+// Применяем фильтрацию если есть активные фильтры
+if (document.getElementById('searchInput').value || 
+    document.getElementById('sortSelect').value !== 'default') {
+    const filtered = filterAndSortData();
+    displayFilteredTable(filtered);
+}
+*/
+
+// Добавьте обработчики событий для элементов фильтрации
+function initFilters() {
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const resetBtn = document.getElementById('resetFilterBtn');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            const filtered = filterAndSortData();
+            displayFilteredTable(filtered);
+        });
+    }
+    
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            const filtered = filterAndSortData();
+            displayFilteredTable(filtered);
+        });
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (searchInput) searchInput.value = '';
+            if (sortSelect) sortSelect.value = 'default';
+            const filtered = filterAndSortData();
+            displayFilteredTable(filtered);
+        });
+    }
+}
+
+// Запускаем инициализацию фильтров после загрузки страницы
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initFilters);
+} else {
+    initFilters();
+}
  </script>
 </body>
 </html>
