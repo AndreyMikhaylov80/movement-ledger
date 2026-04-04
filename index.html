@@ -206,11 +206,13 @@
                 📊 Сортировка по рейтингу
             </label>
             <select id="sortSelect" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
-                <option value="default">Без сортировки</option>
-                <option value="rating-desc">Рейтинг (по убыванию)</option>
-                <option value="rating-asc">Рейтинг (по возрастанию)</option>
-                <option value="name-asc">Имя (А-Я)</option>
-                <option value="name-desc">Имя (Я-А)</option>
+              <option value="default">Без сортировки</option>
+              <option value="name-asc">Имя (А-Я)</option>
+              <option value="name-desc">Имя (Я-А)</option>
+              <option value="icd-desc">ICD Личный (по убыванию)</option>
+              <option value="icd-asc">ICD Личный (по возрастанию)</option>
+              <option value="influence-desc">Индекс влияния (по убыванию)</option>
+              <option value="influence-asc">Индекс влияния (по возрастанию)</option>
             </select>
         </div>
         <div>
@@ -650,6 +652,7 @@ function displayTable(data) {
      setInterval(() => {
          loadData();
      }, 300000);
+
   // ==================== МОДУЛЬ ФИЛЬТРАЦИИ ====================
 // Глобальные переменные
 let originalData = [];      // Хранит оригинальные данные (без фильтрации)
@@ -668,13 +671,17 @@ function filterAndSortData() {
         return item.name.toLowerCase().includes(searchTerm);
     });
     
-    // Шаг 2: Сортировка
+    // Шаг 2: Сортировка (обновлено под новые поля)
     result.sort((a, b) => {
         switch(sortBy) {
-            case 'rating-desc':
-                return b.points.RATE - a.points.RATE;
-            case 'rating-asc':
-                return a.points.RATE - b.points.RATE;
+            case 'icd-desc':     // ICD Личный (по убыванию)
+                return (parseFloat(b.points.ICD_PERSONAL) || 0) - (parseFloat(a.points.ICD_PERSONAL) || 0);
+            case 'icd-asc':      // ICD Личный (по возрастанию)
+                return (parseFloat(a.points.ICD_PERSONAL) || 0) - (parseFloat(b.points.ICD_PERSONAL) || 0);
+            case 'influence-desc': // Индекс влияния (по убыванию)
+                return (parseFloat(b.points.INFLUENCE_INDEX) || 0) - (parseFloat(a.points.INFLUENCE_INDEX) || 0);
+            case 'influence-asc':  // Индекс влияния (по возрастанию)
+                return (parseFloat(a.points.INFLUENCE_INDEX) || 0) - (parseFloat(b.points.INFLUENCE_INDEX) || 0);
             case 'name-asc':
                 return a.name.localeCompare(b.name, 'ru');
             case 'name-desc':
@@ -687,13 +694,81 @@ function filterAndSortData() {
     filteredData = result;
     
     // Обновляем статистику
-    document.getElementById('filteredCount').textContent = filteredData.length;
-    document.getElementById('totalCount').textContent = originalData.length;
+    if (document.getElementById('filteredCount')) {
+        document.getElementById('filteredCount').textContent = filteredData.length;
+        document.getElementById('totalCount').textContent = originalData.length;
+    }
     
     return result;
 }
 
-// Функция отображения ТОЛЬКО имени и рейтинга (компактный режим)
+// Функция отображения полной таблицы (используется при сбросе фильтра)
+function displayFullTable(data) {
+    if (!data || data.length === 0) {
+        document.getElementById('tableContainer').innerHTML = '<div class="loading-text">📭 Пока нет деяний</div>';
+        return;
+    }
+    
+    let html = '<div class="table-wrapper"><table style="width:100%;"><thead><tr>';
+    html += '<th>Дата записи</th>';
+    html += '<th>ФИО</th>';
+    html += '<th>Дата деяния</th>';
+    html += '<th>Деяние</th>';
+    html += '<th>Ссылка подтверждения</th>';
+    html += '<th>Дата верификации</th>';
+    html += '<th>ICD Личный</th>';
+    html += '<th>Индекс влияния</th>';
+    html += '</tr></thead><tbody>';
+    
+    data.slice(0, 100).forEach(item => {
+        // Форматирование ICD Личный
+        let icdDisplay = '0';
+        if (item.points.ICD_PERSONAL && item.points.ICD_PERSONAL !== '0') {
+            let num = parseFloat(item.points.ICD_PERSONAL);
+            icdDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 4 
+            }) : item.points.ICD_PERSONAL;
+        }
+        
+        // Форматирование Индекс влияния
+        let influenceDisplay = '0';
+        if (item.points.INFLUENCE_INDEX && item.points.INFLUENCE_INDEX !== '0') {
+            let num = parseFloat(item.points.INFLUENCE_INDEX);
+            influenceDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 4 
+            }) : item.points.INFLUENCE_INDEX;
+        }
+        
+        // Форматирование ссылки
+        let urlDisplay = '-';
+        if (item.points.URL && item.points.URL.startsWith('http')) {
+            urlDisplay = `<a href="${escapeHtml(item.points.URL)}" target="_blank" style="color:#627eea; text-decoration:none;">🔗 Открыть</a>`;
+        }
+        
+        html += `<tr>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">${escapeHtml(String(item.dateRecord || '-'))}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>${escapeHtml(item.name)}</strong></td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">${escapeHtml(item.date)}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(item.description)}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">${urlDisplay}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">${escapeHtml(item.points.DATE_VER || '-')}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align:right; font-family: monospace; font-weight:bold; color:#2c5282;">${icdDisplay}</td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align:right; font-family: monospace; font-weight:bold; color:#2c5282;">${influenceDisplay}</td>
+        </table>`;
+    });
+    
+    html += '</tbody></table></div>';
+    
+    if (data.length > 100) {
+        html += '<p style="margin-top: 10px; color: #999;">Показаны первые 100 записей из ' + data.length + '</p>';
+    }
+    
+    document.getElementById('tableContainer').innerHTML = html;
+}
+
+// Функция отображения результатов фильтрации (компактный режим: только имя + ICD + Индекс)
 function displayFilteredTable(data) {
     if (!data || data.length === 0) {
         document.getElementById('tableContainer').innerHTML = 
@@ -701,106 +776,60 @@ function displayFilteredTable(data) {
         return;
     }
     
-    // Создаём компактную таблицу (только Имя и Рейтинг)
     let html = '<div class="table-wrapper">';
     html += '<table style="width: 100%;">';
     html += '<thead><tr>';
-    html += '<th style="width: 60%;">👤 Участник</th>';
-    html += '<th style="width: 40%;">⭐ Рейтинг</th>';
+    html += '<th style="width: 40%;">👤 Участник</th>';
+    html += '<th style="width: 30%;">📊 ICD Личный</th>';
+    html += '<th style="width: 30%;">⭐ Индекс влияния</th>';
     html += '</tr></thead><tbody>';
     
     data.forEach(item => {
-        let rateDisplay = '0';
-        const rateValue = item.points.RATE;
-        if (typeof rateValue === 'number' && !isNaN(rateValue) && rateValue !== 0) {
-            rateDisplay = rateValue.toLocaleString('ru-RU', {
+        // Форматирование ICD Личный
+        let icdDisplay = '0';
+        if (item.points.ICD_PERSONAL && item.points.ICD_PERSONAL !== '0') {
+            let num = parseFloat(item.points.ICD_PERSONAL);
+            icdDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 4
-            });
+            }) : item.points.ICD_PERSONAL;
+        }
+        
+        // Форматирование Индекс влияния
+        let influenceDisplay = '0';
+        if (item.points.INFLUENCE_INDEX && item.points.INFLUENCE_INDEX !== '0') {
+            let num = parseFloat(item.points.INFLUENCE_INDEX);
+            influenceDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4
+            }) : item.points.INFLUENCE_INDEX;
         }
         
         html += `<tr>
             <td style="padding: 10px; border-bottom: 1px solid #eee;">
                 <strong>${escapeHtml(item.name)}</strong>
-            </td>
-            <td style="padding: 10px; border-bottom: 1px solid #eee;" class="rate-value">
-                ${rateDisplay}
-            </td>
-        </tr>`;
+             </td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align:right; font-family: monospace; font-weight:bold; color:#2c5282;">
+                ${icdDisplay}
+             </td>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; text-align:right; font-family: monospace; font-weight:bold; color:#2c5282;">
+                ${influenceDisplay}
+             </td>
+         </tr>`;
     });
     
     html += '</tbody></table></div>';
     
-    // Показываем количество найденных участников
     if (data.length > 0) {
         html += `<p style="margin-top: 10px; font-size: 12px; color: #666;">
-            📊 Найдено участников: ${data.length}
+            📊 Найдено участников: ${data.length} из ${originalData.length}
         </p>`;
     }
     
     document.getElementById('tableContainer').innerHTML = html;
 }
 
-// Модифицируем существующую функцию loadData для сохранения оригинальных данных
-// Нужно найти функцию loadData и добавить в неё эти строки:
-
-// ВНЕСИТЕ ИЗМЕНЕНИЯ В ФУНКЦИЮ loadData:
-// Найдите в существующем коде строку: displayTable(data);
-// И добавьте после неё:
-
-/*
-// Сохраняем оригинальные данные для фильтрации
-originalData = [...data];
-filteredData = [...data];
-document.getElementById('totalCount').textContent = originalData.length;
-document.getElementById('filteredCount').textContent = originalData.length;
-
-// Применяем фильтрацию если есть активные фильтры
-if (document.getElementById('searchInput').value || 
-    document.getElementById('sortSelect').value !== 'default') {
-    const filtered = filterAndSortData();
-    displayFilteredTable(filtered);
-}
-*/
-
-// Добавьте обработчики событий для элементов фильтрации
-function initFilters() {
-    const searchInput = document.getElementById('searchInput');
-    const sortSelect = document.getElementById('sortSelect');
-    const resetBtn = document.getElementById('resetFilterBtn');
-    
-    if (searchInput) {
-        searchInput.addEventListener('input', () => {
-            const filtered = filterAndSortData();
-            displayFilteredTable(filtered);
-        });
-    }
-    
-    if (sortSelect) {
-        sortSelect.addEventListener('change', () => {
-            const filtered = filterAndSortData();
-            displayFilteredTable(filtered);
-        });
-    }
-    
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            if (searchInput) searchInput.value = '';
-            if (sortSelect) sortSelect.value = 'default';
-            const filtered = filterAndSortData();
-            displayFilteredTable(filtered);
-        });
-    }
-}
-
-// Запускаем инициализацию фильтров после загрузки страницы
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initFilters);
-} else {
-    initFilters();
-}
-
-  // Функция для отображения только максимальных значений
+// Функция отображения только максимальных значений
 function showMaxValues() {
     if (!originalData.length) return;
     
@@ -834,10 +863,10 @@ function showMaxValues() {
     // Блок ICD личный
     if (maxICDItem) {
         html += `<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">`;
-        html += `<strong>📊 ICD личный (максимальное):</strong><br>`;
+        html += `<strong>📊 ICD Личный (максимальное):</strong><br>`;
         html += `<span style="font-size: 24px; font-weight: bold;">${maxICD.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span><br>`;
         html += `<span style="font-size: 14px;">Участник: ${escapeHtml(maxICDItem.name)}</span><br>`;
-        html += `<span style="font-size: 12px; opacity: 0.9;">ID: ${maxICDItem.id} | Дата: ${maxICDItem.date}</span>`;
+        html += `<span style="font-size: 12px; opacity: 0.9;">Дата записи: ${escapeHtml(maxICDItem.dateRecord || '-')} | Дата деяния: ${escapeHtml(maxICDItem.date)}</span>`;
         html += `</div>`;
     }
     
@@ -847,21 +876,62 @@ function showMaxValues() {
         html += `<strong>⭐ Индекс влияния (максимальное):</strong><br>`;
         html += `<span style="font-size: 24px; font-weight: bold;">${maxInfluence.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span><br>`;
         html += `<span style="font-size: 14px;">Участник: ${escapeHtml(maxInfluenceItem.name)}</span><br>`;
-        html += `<span style="font-size: 12px; opacity: 0.9;">ID: ${maxInfluenceItem.id} | Дата: ${maxInfluenceItem.date}</span>`;
+        html += `<span style="font-size: 12px; opacity: 0.9;">Дата записи: ${escapeHtml(maxInfluenceItem.dateRecord || '-')} | Дата деяния: ${escapeHtml(maxInfluenceItem.date)}</span>`;
         html += `</div>`;
     }
     
     html += `<button onclick="location.reload()" style="padding: 8px 16px; background: #627eea; color: white; border: none; border-radius: 6px; cursor: pointer;">🔄 Показать всех участников</button>`;
     html += '</div>';
     
-    // Временно заменяем таблицу на блок с максимальными значениями
     document.getElementById('tableContainer').innerHTML = html;
 }
 
-// Добавьте обработчик на кнопку (в функцию initFilters добавьте)
-if (document.getElementById('showMaxValuesBtn')) {
-    document.getElementById('showMaxValuesBtn').addEventListener('click', showMaxValues);
+// Добавьте обработчики событий для элементов фильтрации
+function initFilters() {
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const resetBtn = document.getElementById('resetFilterBtn');
+    const showMaxBtn = document.getElementById('showMaxValuesBtn');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            const filtered = filterAndSortData();
+            displayFilteredTable(filtered);
+        });
+    }
+    
+    if (sortSelect) {
+        sortSelect.addEventListener('change', () => {
+            const filtered = filterAndSortData();
+            displayFilteredTable(filtered);
+        });
+    }
+    
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            if (searchInput) searchInput.value = '';
+            if (sortSelect) sortSelect.value = 'default';
+            // Сбрасываем фильтрацию и показываем полную таблицу
+            filteredData = [...originalData];
+            displayFullTable(originalData);
+            if (document.getElementById('filteredCount')) {
+                document.getElementById('filteredCount').textContent = originalData.length;
+            }
+        });
+    }
+    
+    if (showMaxBtn) {
+        showMaxBtn.addEventListener('click', showMaxValues);
+    }
 }
+
+// Запускаем инициализацию фильтров после загрузки страницы
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initFilters);
+} else {
+    initFilters();
+}
+
   
  </script>
 </body>
