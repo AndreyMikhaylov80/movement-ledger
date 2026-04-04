@@ -218,6 +218,11 @@
                 🗑️ Сбросить фильтр
             </button>
         </div>
+     <div>
+    <button id="showMaxValuesBtn" style="padding: 8px 20px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin-left: 10px;">
+        🏆 Показать максимальные значения
+    </button>
+</div>
     </div>
     <div id="filterStats" style="margin-top: 10px; font-size: 12px; color: #666;">
         Показано: <span id="filteredCount">0</span> из <span id="totalCount">0</span> участников
@@ -441,34 +446,56 @@
                                 (parseFloat(j) || 0) + (parseFloat(s) || 0) + 
                                 (parseFloat(c) || 0);
                  }
+              // ДОБАВИТЬ ПОСЛЕ получения rateValue (примерно на 10-15 строк ниже начала цикла)
+
+// ========== НОВЫЕ ПОЛЯ: ICD личный (колонка L) и Индекс влияния (колонка O) ==========
+// В вашем CSV колонки имеют индексы (считая с 0):
+// L - это 11-я колонка (индекс 11)
+// O - это 14-я колонка (индекс 14)
+
+let icdPersonal = '0';      // ICD личный (колонка L)
+let influenceIndex = '0';   // Индекс влияния (колонка O)
+
+// Получаем значение из колонки L (индекс 11)
+if (cols.length > 11 && cols[11]) {
+    let rawValue = clean(cols[11]);
+    // Очищаем от кавычек и пробелов, заменяем запятую на точку
+    rawValue = rawValue.replace(/["']/g, '').replace(',', '.').trim();
+    let numValue = parseFloat(rawValue);
+    icdPersonal = !isNaN(numValue) ? numValue.toString() : '0';
+}
+
+// Получаем значение из колонки O (индекс 14)
+if (cols.length > 14 && cols[14]) {
+    let rawValue = clean(cols[14]);
+    rawValue = rawValue.replace(/["']/g, '').replace(',', '.').trim();
+    let numValue = parseFloat(rawValue);
+    influenceIndex = !isNaN(numValue) ? numValue.toString() : '0';
+}
+
+// Добавляем эти поля в объект data (найдите существующий data.push и дополните)
+// В существующем data.push добавьте строки:
+// icdPersonal: icdPersonal,
+// influenceIndex: influenceIndex
                  
                  data.push({
-                     id: id,
-                     name: name,
-                     date: date,
-                     description: description,
-                     points: {
-                         E: e,
-                         W: w,
-                         J: j,
-                         S: s,
-                         C: c,
-                         URL: url,
-                         DATE_VER: dateVer,
-                         RATE: rateValue
-                     }
-                 });
-             }
-             
-             console.log(`Обработано записей: ${data.length}`);
-             if (data.length > 0) {
-                 console.log('Первая запись:', data[0]);
-             }
-             
-             if (data.length === 0) {
-                 document.getElementById('tableContainer').innerHTML = '<div class="loading-text">⚠️ Нет данных для отображения</div>';
-                 return [];
-             }
+    id: id,
+    name: name,
+    date: date,
+    description: description,
+    points: {
+        E: e,
+        W: w,
+        J: j,
+        S: s,
+        C: c,
+        URL: url,
+        DATE_VER: dateVer,
+        RATE: rateValue,
+        ICD_PERSONAL: icdPersonal,      // НОВОЕ ПОЛЕ
+        INFLUENCE_INDEX: influenceIndex  // НОВОЕ ПОЛЕ
+    }
+});
              
              // Сохраняем оригинальные данные для фильтрации
 originalData = [...data];
@@ -521,10 +548,24 @@ document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
          html += '<th>ID</th><th>Участник</th><th>Дата</th><th>Описание</th>';
          html += '<th>E</th><th>W</th><th>J</th><th>S</th><th>C</th>';
          html += '<th>Ссылка на подтверждение</th><th>Дата верификации</th><th>Рейтинг</th>';
+         html += '<th>ICD личный</th>';      // НОВЫЙ СТОЛБЕЦ
+         html += '<th>Индекс влияния</th>';  // НОВЫЙ СТОЛБЕЦ
          html += '</tr></thead><tbody>';
          
          data.slice(0, 100).forEach(item => {
              let rateDisplay = '0';
+             // ПОДГОТОВКА ЗНАЧЕНИЙ ДЛЯ НОВЫХ СТОЛБЦОВ (добавьте перед формированием строки)
+             let icdDisplay = '0';
+          if (item.points.ICD_PERSONAL && item.points.ICD_PERSONAL !== '0') {
+    let num = parseFloat(item.points.ICD_PERSONAL);
+    icdDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : item.points.ICD_PERSONAL;
+}
+
+let influenceDisplay = '0';
+if (item.points.INFLUENCE_INDEX && item.points.INFLUENCE_INDEX !== '0') {
+    let num = parseFloat(item.points.INFLUENCE_INDEX);
+    influenceDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : item.points.INFLUENCE_INDEX;
+}
              const rateValue = item.points.RATE;
              if (typeof rateValue === 'number' && !isNaN(rateValue) && rateValue !== 0) {
                  rateDisplay = rateValue.toLocaleString('ru-RU', {
@@ -546,6 +587,8 @@ document.getElementById('lastUpdate').textContent = new Date().toLocaleString();
                  <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.points.URL)}</td>
                  <td>${escapeHtml(item.points.DATE_VER)}</td>
                  <td class="rate-value">${rateDisplay}</td>
+                 <td class="rate-value">${icdDisplay}</td>
+                 <td class="rate-value">${influenceDisplay}</td>
              </tr>`;
          });
          
@@ -790,6 +833,70 @@ if (document.readyState === 'loading') {
 } else {
     initFilters();
 }
+
+  // Функция для отображения только максимальных значений
+function showMaxValues() {
+    if (!originalData.length) return;
+    
+    // Находим максимальное значение ICD личный
+    let maxICD = -Infinity;
+    let maxICDItem = null;
+    
+    // Находим максимальное значение Индекс влияния
+    let maxInfluence = -Infinity;
+    let maxInfluenceItem = null;
+    
+    originalData.forEach(item => {
+        const icd = parseFloat(item.points.ICD_PERSONAL) || 0;
+        const influence = parseFloat(item.points.INFLUENCE_INDEX) || 0;
+        
+        if (icd > maxICD) {
+            maxICD = icd;
+            maxICDItem = item;
+        }
+        
+        if (influence > maxInfluence) {
+            maxInfluence = influence;
+            maxInfluenceItem = item;
+        }
+    });
+    
+    // Формируем HTML для отображения максимальных значений
+    let html = '<div style="margin: 20px 0;">';
+    html += '<h3 style="color: #627eea;">🏆 Максимальные значения</h3>';
+    
+    // Блок ICD личный
+    if (maxICDItem) {
+        html += `<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">`;
+        html += `<strong>📊 ICD личный (максимальное):</strong><br>`;
+        html += `<span style="font-size: 24px; font-weight: bold;">${maxICD.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span><br>`;
+        html += `<span style="font-size: 14px;">Участник: ${escapeHtml(maxICDItem.name)}</span><br>`;
+        html += `<span style="font-size: 12px; opacity: 0.9;">ID: ${maxICDItem.id} | Дата: ${maxICDItem.date}</span>`;
+        html += `</div>`;
+    }
+    
+    // Блок Индекс влияния
+    if (maxInfluenceItem) {
+        html += `<div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px;">`;
+        html += `<strong>⭐ Индекс влияния (максимальное):</strong><br>`;
+        html += `<span style="font-size: 24px; font-weight: bold;">${maxInfluence.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span><br>`;
+        html += `<span style="font-size: 14px;">Участник: ${escapeHtml(maxInfluenceItem.name)}</span><br>`;
+        html += `<span style="font-size: 12px; opacity: 0.9;">ID: ${maxInfluenceItem.id} | Дата: ${maxInfluenceItem.date}</span>`;
+        html += `</div>`;
+    }
+    
+    html += `<button onclick="location.reload()" style="padding: 8px 16px; background: #627eea; color: white; border: none; border-radius: 6px; cursor: pointer;">🔄 Показать всех участников</button>`;
+    html += '</div>';
+    
+    // Временно заменяем таблицу на блок с максимальными значениями
+    document.getElementById('tableContainer').innerHTML = html;
+}
+
+// Добавьте обработчик на кнопку (в функцию initFilters добавьте)
+if (document.getElementById('showMaxValuesBtn')) {
+    document.getElementById('showMaxValuesBtn').addEventListener('click', showMaxValues);
+}
+  
  </script>
 </body>
 </html>
