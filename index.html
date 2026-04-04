@@ -362,7 +362,6 @@
          return rows;
      }
      
-     // Загрузка CSV данных
 // Загрузка CSV данных
 async function loadData() {
     try {
@@ -402,53 +401,26 @@ async function loadData() {
                 return String(val).replace(/^["']|["']$/g, '').trim();
             };
             
-            // Определяем колонки (индексы могут отличаться, подстраиваемся)
-            const id = clean(cols[0]);
-            const name = clean(cols[1]);
-            const date = clean(cols[2]);
-            const description = clean(cols[3]);
-            
-            // Баллы (колонки 4-8)
-            const e = clean(cols[4]) || '0';
-            const w = cols[5] ? clean(cols[5]) : '0';
-            const j = cols[6] ? clean(cols[6]) : '0';
-            const s = cols[7] ? clean(cols[7]) : '0';
-            const c = cols[8] ? clean(cols[8]) : '0';
+            // Определяем колонки согласно вашему ТЗ
+            const dateRecord = clean(cols[0]);     // колонка 0 - Дата записи
+            const name = clean(cols[1]);            // колонка 1 - ФИО
+            const date = clean(cols[2]);            // колонка 2 - Дата деяния
+            const description = clean(cols[3]);     // колонка 3 - Деяние
             
             // Ссылка (колонка 9)
             let url = '';
-            if (cols[9]) {
+            if (cols.length > 9 && cols[9]) {
                 url = clean(cols[9]);
                 if (!url.startsWith('http')) url = '';
             }
             
             // Дата верификации (колонка 10)
             let dateVer = '';
-            if (cols[10]) {
+            if (cols.length > 10 && cols[10]) {
                 dateVer = clean(cols[10]);
             }
             
-            // Рейтинг (ищем в колонках 11-20)
-            let rateValue = 0;
-            for (let k = 11; k < Math.min(cols.length, 21); k++) {
-                const val = clean(cols[k]);
-                if (val && !isNaN(parseFloat(val.replace(',', '.')))) {
-                    const testNum = parseFloat(val.replace(',', '.'));
-                    if (!isNaN(testNum) && testNum > 0) {
-                        rateValue = testNum;
-                        break;
-                    }
-                }
-            }
-            
-            // Если рейтинг не найден, считаем сумму баллов
-            if (rateValue === 0) {
-                rateValue = (parseFloat(e) || 0) + (parseFloat(w) || 0) + 
-                           (parseFloat(j) || 0) + (parseFloat(s) || 0) + 
-                           (parseFloat(c) || 0);
-            }
-            
-            // ========== НОВЫЕ ПОЛЯ: ICD личный (колонка L) и Индекс влияния (колонка O) ==========
+            // ========== ПОЛЯ: ICD личный (колонка L) и Индекс влияния (колонка O) ==========
             let icdPersonal = '0';      // ICD личный (колонка L - индекс 11)
             let influenceIndex = '0';   // Индекс влияния (колонка O - индекс 14)
             
@@ -468,26 +440,20 @@ async function loadData() {
                 influenceIndex = !isNaN(numValue) ? numValue.toString() : '0';
             }
             
-            // Добавляем запись в массив данных
+            // Добавляем запись в массив данных (только нужные поля)
             data.push({
-                id: id,
-                name: name,
-                date: date,
-                description: description,
+                dateRecord: dateRecord,      // колонка 0 - Дата записи
+                name: name,                  // колонка 1 - ФИО
+                date: date,                  // колонка 2 - Дата деяния
+                description: description,    // колонка 3 - Деяние
                 points: {
-                    E: e,
-                    W: w,
-                    J: j,
-                    S: s,
-                    C: c,
-                    URL: url,
-                    DATE_VER: dateVer,
-                    RATE: rateValue,
-                    ICD_PERSONAL: icdPersonal,
-                    INFLUENCE_INDEX: influenceIndex
+                    URL: url,                       // колонка 9 - Ссылка
+                    DATE_VER: dateVer,              // колонка 10 - Дата верификации
+                    ICD_PERSONAL: icdPersonal,      // колонка 11 (L) - ICD Личный
+                    INFLUENCE_INDEX: influenceIndex // колонка 14 (O) - Индекс влияния
                 }
             });
-        } // ЗАКРЫТИЕ ЦИКЛА for (важно!)
+        } // ЗАКРЫТИЕ ЦИКЛА for
         
         console.log(`Обработано записей: ${data.length}`);
         
@@ -539,67 +505,66 @@ async function loadData() {
     }
 }
      
-     function displayTable(data) {
-         if (!data || data.length === 0) {
-             document.getElementById('tableContainer').innerHTML = '<div class="loading-text">📭 Пока нет деяний</div>';
-             return;
-         }
-         
-         let html = '<div class="table-wrapper"><table><thead><tr>';
-         html += '<th>ID</th><th>Участник</th><th>Дата</th><th>Описание</th>';
-         html += '<th>E</th><th>W</th><th>J</th><th>S</th><th>C</th>';
-         html += '<th>Ссылка на подтверждение</th><th>Дата верификации</th><th>Рейтинг</th>';
-         html += '<th>ICD личный</th>';      // НОВЫЙ СТОЛБЕЦ
-         html += '<th>Индекс влияния</th>';  // НОВЫЙ СТОЛБЕЦ
-         html += '</tr></thead><tbody>';
-         
-         data.slice(0, 100).forEach(item => {
-             let rateDisplay = '0';
-             // ПОДГОТОВКА ЗНАЧЕНИЙ ДЛЯ НОВЫХ СТОЛБЦОВ (добавьте перед формированием строки)
-             let icdDisplay = '0';
-          if (item.points.ICD_PERSONAL && item.points.ICD_PERSONAL !== '0') {
-    let num = parseFloat(item.points.ICD_PERSONAL);
-    icdDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : item.points.ICD_PERSONAL;
+function displayTable(data) {
+    if (!data || data.length === 0) {
+        document.getElementById('tableContainer').innerHTML = '<div class="loading-text">📭 Пока нет деяний</div>';
+        return;
+    }
+    
+    let html = '<div class="table-wrapper"><table><thead><tr>';
+    // ТОЛЬКО нужные колонки (7 штук)
+    html += '<th>Дата записи</th>';      // колонка 1 (индекс 0 в data)
+    html += '<th>ФИО</th>';              // колонка 2 (индекс 1 в data)
+    html += '<th>Дата деяния</th>';      // колонка 3 (индекс 2 в data)
+    html += '<th>Деяние</th>';           // колонка 4 (индекс 3 в data)
+    html += '<th>Ссылка подтверждения</th>'; // колонка 9 (индекс 9 в points)
+    html += '<th>Дата верификации</th>';     // колонка 10 (индекс 10 в points)
+    html += '<th>ICD Личный</th>';        // колонка 12 (индекс 11 в points)
+    html += '<th>Индекс влияния</th>';    // колонка 15 (индекс 14 в points)
+    html += '</tr></thead><tbody>';
+    
+    data.slice(0, 100).forEach(item => {
+        // Форматирование ICD Личный (колонка L, индекс 11)
+        let icdDisplay = '0';
+        if (item.points.ICD_PERSONAL && item.points.ICD_PERSONAL !== '0') {
+            let num = parseFloat(item.points.ICD_PERSONAL);
+            icdDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 4 
+            }) : item.points.ICD_PERSONAL;
+        }
+        
+        // Форматирование Индекс влияния (колонка O, индекс 14)
+        let influenceDisplay = '0';
+        if (item.points.INFLUENCE_INDEX && item.points.INFLUENCE_INDEX !== '0') {
+            let num = parseFloat(item.points.INFLUENCE_INDEX);
+            influenceDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 4 
+            }) : item.points.INFLUENCE_INDEX;
+        }
+        
+        html += `<tr>
+            <td>${escapeHtml(String(item.dateRecord || item.id || '-'))}</td>
+            <td><strong>${escapeHtml(item.name)}</strong></td>
+            <td>${escapeHtml(item.date)}</td>
+            <td style="max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(item.description)}</td>
+            <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                ${item.points.URL ? `<a href="${escapeHtml(item.points.URL)}" target="_blank" style="color:#627eea;">Ссылка</a>` : '-'}
+            </td>
+            <td>${escapeHtml(item.points.DATE_VER || '-')}</td>
+            <td class="rate-value">${icdDisplay}</td>
+            <td class="rate-value">${influenceDisplay}</td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    if (data.length > 100) {
+        html += '<p style="margin-top: 10px; color: #999;">Показаны первые 100 записей из ' + data.length + '</p>';
+    }
+    
+    document.getElementById('tableContainer').innerHTML = html;
 }
-
-let influenceDisplay = '0';
-if (item.points.INFLUENCE_INDEX && item.points.INFLUENCE_INDEX !== '0') {
-    let num = parseFloat(item.points.INFLUENCE_INDEX);
-    influenceDisplay = !isNaN(num) ? num.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : item.points.INFLUENCE_INDEX;
-}
-             const rateValue = item.points.RATE;
-             if (typeof rateValue === 'number' && !isNaN(rateValue) && rateValue !== 0) {
-                 rateDisplay = rateValue.toLocaleString('ru-RU', {
-                     minimumFractionDigits: 2,
-                     maximumFractionDigits: 4
-                 });
-             }
-             
-             html += `<tr>
-                 <td>${escapeHtml(String(item.id))}</td>
-                 <td>${escapeHtml(item.name)}</td>
-                 <td>${escapeHtml(item.date)}</td>
-                 <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.description)}</td>
-                 <td>${escapeHtml(String(item.points.E))}</td>
-                 <td>${escapeHtml(String(item.points.W))}</td>
-                 <td>${escapeHtml(String(item.points.J))}</td>
-                 <td>${escapeHtml(String(item.points.S))}</td>
-                 <td>${escapeHtml(String(item.points.C))}</td>
-                 <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.points.URL)}</td>
-                 <td>${escapeHtml(item.points.DATE_VER)}</td>
-                 <td class="rate-value">${rateDisplay}</td>
-                 <td class="rate-value">${icdDisplay}</td>
-                 <td class="rate-value">${influenceDisplay}</td>
-             </tr>`;
-         });
-         
-         html += '</tbody></table></div>';
-         if (data.length > 100) {
-             html += '<p style="margin-top: 10px; color: #999;">Показаны первые 100 записей из ' + data.length + '</p>';
-         }
-         
-         document.getElementById('tableContainer').innerHTML = html;
-     }
      
      function updateVerificationStatus(currentHash, blockchainHash) {
          const statusSpan = document.getElementById('statusBadge');
