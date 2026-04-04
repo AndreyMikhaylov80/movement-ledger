@@ -907,18 +907,38 @@ function initFilters() {
         });
     }
     
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            if (searchInput) searchInput.value = '';
-            if (sortSelect) sortSelect.value = 'default';
-            // Сбрасываем фильтрацию и показываем полную таблицу
-            filteredData = [...originalData];
-            displayFullTable(originalData);
+if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        if (sortSelect) sortSelect.value = 'default';
+        
+        // Сбрасываем фильтрацию
+        filteredData = [...originalData];
+        
+        // ОТЛАДКА: проверяем что данные есть
+        console.log('Сброс фильтра. Данных:', originalData.length);
+        
+        // Очищаем контейнер перед отрисовкой
+        const tableContainer = document.getElementById('tableContainer');
+        tableContainer.innerHTML = '<div class="loading-text">Загрузка...</div>';
+        
+        // НЕМНОГО ЗАДЕРЖКА ДЛЯ ОБНОВЛЕНИЯ DOM
+        setTimeout(() => {
+            // Используем функцию displayTable (которая показывает полную таблицу)
+            if (typeof displayTable === 'function') {
+                displayTable(originalData);
+            } else {
+                // fallback если displayTable не определена
+                displayFullTable(originalData);
+            }
+            
+            // Обновляем статистику
             if (document.getElementById('filteredCount')) {
                 document.getElementById('filteredCount').textContent = originalData.length;
             }
-        });
-    }
+        }, 50);
+    });
+}
     
     if (showMaxBtn) {
         showMaxBtn.addEventListener('click', showMaxValues);
