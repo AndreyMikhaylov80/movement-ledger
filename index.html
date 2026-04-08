@@ -967,22 +967,41 @@ if (document.readyState === 'loading') {
     initFilters();
 }
 
-  async function loadStats() {
+ async function loadStats() {
     try {
         const response = await fetch(CSV_URL);
         const csvText = await response.text();
         const rows = csvText.split('\n').filter(row => row.trim());
         
-        if (rows.length < 2) return;
+        if (rows.length < 2) {
+            // Если нет второй строки, показываем 0
+     //       document.getElementById('coeff').innerHTML = '0';
+     //       document.getElementById('ucCoeff').innerHTML = '0';
+            document.getElementById('uc').innerHTML = '0';
+            return;
+        }
         
         const cols = rows[1].split(',');
         
+        // Функция очистки значения
+        const cleanValue = (val) => {
+            if (!val) return '0';
+            let cleaned = String(val).replace(/["']/g, '').trim();
+            if (cleaned === '') return '0';
+            return cleaned;
+        };
+        
         // Q = индекс 16, R = индекс 17, S = индекс 18
-        document.getElementById('coeff').innerHTML = cols[16]?.replace(/["']/g, '') || '0';
-        document.getElementById('ucCoeff').innerHTML = cols[17]?.replace(/["']/g, '') || '0';
-        document.getElementById('uc').innerHTML = cols[18]?.replace(/["']/g, '') || '0';
+      //  document.getElementById('coeff').innerHTML = cleanValue(cols[16]);
+     //   document.getElementById('ucCoeff').innerHTML = cleanValue(cols[17]);
+        document.getElementById('uc').innerHTML = cleanValue(cols[18]);
+        
     } catch (error) {
         console.error('Ошибка загрузки статистики:', error);
+        // При ошибке тоже показываем 0
+   //     document.getElementById('coeff').innerHTML = '0';
+    //    document.getElementById('ucCoeff').innerHTML = '0';
+        document.getElementById('uc').innerHTML = '0';
     }
 }
   
