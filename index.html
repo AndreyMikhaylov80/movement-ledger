@@ -188,7 +188,10 @@
          <button class="check-btn" onclick="verifyWithBlockchain()">🔄 Проверить данные</button>
          <div id="verifyResult"></div>
      </div>
-     
+     <div style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); padding: 20px; border-radius: 12px; margin: 15px 0 25px 0; text-align: center;">
+    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">💎 Глобальный УЦ </div>
+    <div id="ucValue" style="font-size: 42px; font-weight: bold; color: #ff9800;">0</div>
+</div>
      <div style="padding: 0 20px 20px 20px;">
          <h2>📊 Деяния участников</h2>
       <!-- Блок фильтрации участников -->
@@ -215,10 +218,6 @@
               <option value="influence-asc">Индекс влияния (по возрастанию)</option>
             </select>
         </div>
-<div style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); padding: 20px; border-radius: 12px; margin: 15px 0 25px 0; text-align: center;">
-    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">💎 Глобальный УЦ </div>
-    <div id="ucValue" style="font-size: 42px; font-weight: bold; color: #ff9800;">0</div>
-</div>
 </div>
         <div>
             <button id="resetFilterBtn" style="padding: 8px 20px; background: #627eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
@@ -975,12 +974,17 @@ async function loadUC() {
         let value = cols[18]?.replace(/["']/g, '').trim() || '0';
         if (value === '') value = '0';
         
-        // Форматируем число (если это число)
-        let num = parseFloat(value.replace(',', '.'));
+        // ВАЖНО: заменяем запятую на точку ДО преобразования в число
+        // Не используем toLocaleString, который добавляет разделители тысяч
+        let normalizedValue = value.replace(',', '.');
+        let num = parseFloat(normalizedValue);
+        
         if (!isNaN(num)) {
+            // Отображаем число с правильным количеством знаков после запятой
             document.getElementById('ucValue').innerHTML = num.toLocaleString('ru-RU', {
                 minimumFractionDigits: 2,
-                maximumFractionDigits: 4
+                maximumFractionDigits: 10,
+                useGrouping: false  // ОТКЛЮЧАЕМ разделители тысяч
             });
         } else {
             document.getElementById('ucValue').innerHTML = value;
