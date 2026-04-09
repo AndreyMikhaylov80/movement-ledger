@@ -1090,7 +1090,7 @@ if (!value.startsWith('0,') && value.length > 5 && !value.includes(',')) {
     console.log('Исправленное значение:', displayValue);
 }
         // ========== СНАЧАЛА ОБЪЯВЛЯЕМ ПЕРЕМЕННУЮ ==========
-        let numericValue = parseFloat(value.replace(',', '.'));
+        let numericValue = parseFloat(displayValue.replace(',', '.'));
         
         // ОТЛАДКА - проверяем что пришло из CSV
         console.log('=== ОТЛАДКА loadUC ===');
