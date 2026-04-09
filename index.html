@@ -1119,6 +1119,9 @@ async function loadUC() {
         
     } catch (error) {
         console.error('Ошибка загрузки УЦ:', error);
+     // Временно добавьте для проверки
+        console.log('Оригинальное значение из CSV:', value);
+        console.log('Числовое значение для уровня:', numericValue);
         document.getElementById('ucValue').innerHTML = '0';
         document.getElementById('ucLevel').innerHTML = '';
     }
