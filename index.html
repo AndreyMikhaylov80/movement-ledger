@@ -1081,7 +1081,14 @@ async function loadUC() {
         // Получаем значение из колонки S (индекс 18)
         let value = cols[18]?.replace(/["']/g, '').trim() || '0';
         if (value === '') value = '0';
-        
+        // ========== ДОБАВЛЯЕМ "0," В НАЧАЛО ==========
+let displayValue = value;
+if (!value.startsWith('0,') && value.length > 5 && !value.includes(',')) {
+    // Добавляем "0," в начало
+    displayValue = '0,' + value;
+    console.log('Исходное значение:', value);
+    console.log('Исправленное значение:', displayValue);
+}
         // ========== СНАЧАЛА ОБЪЯВЛЯЕМ ПЕРЕМЕННУЮ ==========
         let numericValue = parseFloat(value.replace(',', '.'));
         
