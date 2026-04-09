@@ -1081,7 +1081,9 @@ async function loadUC() {
         // Получаем значение из колонки S (индекс 18) - как есть, без форматирования
         let value = cols[18]?.replace(/["']/g, '').trim() || '0';
         if (value === '') value = '0';
-        
+        // Временно добавьте для проверки
+console.log('Оригинальное значение из CSV:', value);
+console.log('Числовое значение для уровня:', numericValue);
         // Отображаем значение КАК ЕСТЬ (без преобразования в число)
         document.getElementById('ucValue').innerHTML = value;
         
@@ -1119,9 +1121,6 @@ async function loadUC() {
         
     } catch (error) {
         console.error('Ошибка загрузки УЦ:', error);
-     // Временно добавьте для проверки
-        console.log('Оригинальное значение из CSV:', value);
-        console.log('Числовое значение для уровня:', numericValue);
         document.getElementById('ucValue').innerHTML = '0';
         document.getElementById('ucLevel').innerHTML = '';
     }
