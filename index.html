@@ -215,19 +215,10 @@
               <option value="influence-asc">Индекс влияния (по возрастанию)</option>
             </select>
         </div>
-     <div style="display: flex; gap: 20px; margin: 15px 0 25px 0; flex-wrap: wrap;">
-    <div style="flex: 1; background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 12px; color: #666;">📈 Коэффициент увеличения</div>
-        <div id="coeff" style="font-size: 24px; font-weight: bold; color: #627eea;">-</div>
-    </div>
-    <div style="flex: 1; background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 12px; color: #666;">💰 УЦ с коэффициентом</div>
-        <div id="ucCoeff" style="font-size: 24px; font-weight: bold; color: #4caf50;">-</div>
-    </div>
-    <div style="flex: 1; background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 12px; color: #666;">💎 УЦ</div>
-        <div id="uc" style="font-size: 24px; font-weight: bold; color: #ff9800;">-</div>
-    </div>
+<div style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); padding: 20px; border-radius: 12px; margin: 15px 0 25px 0; text-align: center;">
+    <div style="font-size: 14px; color: #666; margin-bottom: 5px;">💎 Глобальный УЦ </div>
+    <div id="ucValue" style="font-size: 42px; font-weight: bold; color: #ff9800;">0</div>
+</div>
 </div>
         <div>
             <button id="resetFilterBtn" style="padding: 8px 20px; background: #627eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
@@ -657,7 +648,7 @@ function displayTable(data) {
          console.log('🚀 Запуск приложения...');
          await initBlockchain();
          await loadData();
-         await loadStats();
+         await loadUC();  
          console.log('✅ Инициализация завершена');
      }
      
@@ -967,41 +958,37 @@ if (document.readyState === 'loading') {
     initFilters();
 }
 
- async function loadStats() {
+async function loadUC() {
     try {
         const response = await fetch(CSV_URL);
         const csvText = await response.text();
         const rows = csvText.split('\n').filter(row => row.trim());
         
         if (rows.length < 2) {
-            // Если нет второй строки, показываем 0
-     //       document.getElementById('coeff').innerHTML = '0';
-     //       document.getElementById('ucCoeff').innerHTML = '0';
-            document.getElementById('uc').innerHTML = '0';
+            document.getElementById('ucValue').innerHTML = '0';
             return;
         }
         
         const cols = rows[1].split(',');
         
-        // Функция очистки значения
-        const cleanValue = (val) => {
-            if (!val) return '0';
-            let cleaned = String(val).replace(/["']/g, '').trim();
-            if (cleaned === '') return '0';
-            return cleaned;
-        };
+        // Очищаем значение от кавычек
+        let value = cols[18]?.replace(/["']/g, '').trim() || '0';
+        if (value === '') value = '0';
         
-        // Q = индекс 16, R = индекс 17, S = индекс 18
-      //  document.getElementById('coeff').innerHTML = cleanValue(cols[16]);
-     //   document.getElementById('ucCoeff').innerHTML = cleanValue(cols[17]);
-        document.getElementById('uc').innerHTML = cleanValue(cols[18]);
+        // Форматируем число (если это число)
+        let num = parseFloat(value.replace(',', '.'));
+        if (!isNaN(num)) {
+            document.getElementById('ucValue').innerHTML = num.toLocaleString('ru-RU', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 4
+            });
+        } else {
+            document.getElementById('ucValue').innerHTML = value;
+        }
         
     } catch (error) {
-        console.error('Ошибка загрузки статистики:', error);
-        // При ошибке тоже показываем 0
-   //     document.getElementById('coeff').innerHTML = '0';
-    //    document.getElementById('ucCoeff').innerHTML = '0';
-        document.getElementById('uc').innerHTML = '0';
+        console.error('Ошибка загрузки УЦ:', error);
+        document.getElementById('ucValue').innerHTML = '0';
     }
 }
   
