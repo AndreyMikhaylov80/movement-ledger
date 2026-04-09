@@ -1050,7 +1050,7 @@ async function loadUC() {
         if (!isNaN(num)) {
             // Отображаем число с правильным количеством знаков после запятой
             document.getElementById('ucValue').innerHTML = num.toLocaleString('ru-RU', {
-                minimumFractionDigits: 5,
+                minimumFractionDigits: 2,
                 maximumFractionDigits: 3,
                 useGrouping: false  // ОТКЛЮЧАЕМ разделители тысяч
             });
