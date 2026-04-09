@@ -1076,67 +1076,24 @@ async function loadUC() {
             return;
         }
         
-        // ========== ОПРЕДЕЛЯЕМ РАЗДЕЛИТЕЛЬ ==========
-        let delimiter = ',';
-        const firstLine = rows[0];
-        if (firstLine.includes(';')) {
-            delimiter = ';';
-        } else if (firstLine.includes('\t')) {
-            delimiter = '\t';
-        }
-        console.log('Разделитель CSV:', delimiter === ';' ? 'точка с запятой' : 'запятая');
+        const cols = rows[1].split(',');
         
-        const cols = rows[1].split(delimiter);
-        console.log('Все колонки второй строки:', cols);
-        console.log('Количество колонок:', cols.length);
-        
-        // Показываем все колонки для отладки
-        for (let i = 0; i < cols.length; i++) {
-            console.log(`Колонка ${i}: "${cols[i]}"`);
-        }
-        
-        // Ищем колонку S (должна быть 18 или 19)
-        let value = '0';
-        
-        // Пробуем индекс 18
-        if (cols.length > 18) {
-            value = cols[18]?.replace(/["']/g, '').trim() || '0';
-        }
-        // Если не нашли, пробуем индекс 17
-        if (value === '0' && cols.length > 17) {
-            value = cols[17]?.replace(/["']/g, '').trim() || '0';
-        }
-        // Если не нашли, пробуем индекс 19
-        if (value === '0' && cols.length > 19) {
-            value = cols[19]?.replace(/["']/g, '').trim() || '0';
-        }
-        
+        // Получаем значение из колонки S (индекс 18)
+        let value = cols[18]?.replace(/["']/g, '').trim() || '0';
         if (value === '') value = '0';
         
-        // ========== ВОССТАНАВЛИВАЕМ ЗАПЯТУЮ ==========
-        // Если значение выглядит как "01000001994", преобразуем в "0,1000001994"
-        let displayValue = value;
-        let numericValue = parseFloat(value);
+        // ========== СНАЧАЛА ОБЪЯВЛЯЕМ ПЕРЕМЕННУЮ ==========
+        let numericValue = parseFloat(value.replace(',', '.'));
         
-        // Если число большое (миллиарды), а должно быть меньше 1 - значит потеряна запятая
-        if (numericValue > 1 && value.length > 5) {
-            // Пытаемся восстановить: 01000001994 -> 0.1000001994
-            const strValue = String(value);
-            if (strValue.startsWith('0') && strValue.length > 1) {
-                // Вставляем запятую после первого нуля
-                const restored = strValue[0] + ',' + strValue.slice(1);
-                displayValue = restored;
-                numericValue = parseFloat(restored.replace(',', '.'));
-                console.log('Восстановленное значение:', restored);
-            }
-        }
-        
+        // ОТЛАДКА - проверяем что пришло из CSV
+        console.log('=== ОТЛАДКА loadUC ===');
         console.log('Оригинальное значение из CSV:', value);
-        console.log('Отображаемое значение:', displayValue);
+        console.log('Тип значения:', typeof value);
         console.log('Числовое значение для уровня:', numericValue);
+        console.log('========================');
         
-        // Отображаем восстановленное значение
-        document.getElementById('ucValue').innerHTML = displayValue;
+        // Отображаем исходное значение (как есть)
+        document.getElementById('ucValue').innerHTML = value;
         
         if (isNaN(numericValue)) numericValue = 0;
         
@@ -1161,7 +1118,7 @@ async function loadUC() {
             const pointer = document.getElementById('ucPointer');
             if (pointer) {
                 pointer.style.left = position + '%';
-                document.getElementById('pointerValue').innerHTML = displayValue;
+                document.getElementById('pointerValue').innerHTML = value;
             }
         }
         
@@ -1171,7 +1128,6 @@ async function loadUC() {
         document.getElementById('ucLevel').innerHTML = '';
     }
 }
-  
   
  </script>
 </body>
