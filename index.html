@@ -1025,80 +1025,6 @@ if (document.readyState === 'loading') {
     initFilters();
 }
 
-async function loadUC() {
-    try {
-        const response = await fetch(CSV_URL);
-        const csvText = await response.text();
-        const rows = csvText.split('\n').filter(row => row.trim());
-        
-        if (rows.length < 2) {
-            document.getElementById('ucValue').innerHTML = '0';
-            return;
-        }
-        
-        const cols = rows[1].split(',');
-        
-        // Очищаем значение от кавычек
-        let value = cols[18]?.replace(/["']/g, '').trim() || '0';
-        if (value === '') value = '0';
-        
-        // ВАЖНО: заменяем запятую на точку ДО преобразования в число
-        // Не используем toLocaleString, который добавляет разделители тысяч
-        let normalizedValue = value.replace(',', '.');
-        let num = parseFloat(normalizedValue);
-        
-        if (!isNaN(num)) {
-            // Отображаем число с правильным количеством знаков после запятой
-            document.getElementById('ucValue').innerHTML = num.toLocaleString('ru-RU', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 3,
-                useGrouping: false  // ОТКЛЮЧАЕМ разделители тысяч
-            });
-        } else {
-            document.getElementById('ucValue').innerHTML = value;
-        }
-        
-    } catch (error) {
-        console.error('Ошибка загрузки УЦ:', error);
-        document.getElementById('ucValue').innerHTML = '0';
-    }
- // Данные об уровнях
-const ucLevels = [
-    { name: 'УЦ-0', title: 'Зарождающаяся', min: 0, max: 0.20, color: '#8B0000', description: 'Выживание, локальные группы, базовые блага не гарантированы' },
-    { name: 'УЦ-1', title: 'Планетарная', min: 0.20, max: 0.40, color: '#CD853F', description: 'Формирование глобального общества, базовые блага доступны не всем' },
-    { name: 'УЦ-2', title: 'Обеспеченная', min: 0.40, max: 0.60, color: '#FFD700', description: 'Каждый родившийся гарантированно обеспечен базовыми благами' },
-    { name: 'УЦ-3', title: 'Звёздная', min: 0.60, max: 0.80, color: '#87CEEB', description: 'Управление энергией звезды, активное освоение космоса' },
-    { name: 'УЦ-4', title: 'Галактическая', min: 0.80, max: 0.90, color: '#9370DB', description: 'Контроль над энергией галактики, гармония с природой' },
-    { name: 'УЦ-5', title: 'Постчеловеческая', min: 0.90, max: Infinity, color: '#FF69B4', description: 'Духовная зрелость, управление пространством-временем' }
-];
-
-// Функция определения уровня по значению УЦ
-function getUCLevel(ucValue) {
-    const num = parseFloat(ucValue);
-    if (isNaN(num)) return null;
-    
-    for (let level of ucLevels) {
-        if (num >= level.min && num < level.max) {
-            return level;
-        }
-    }
-    return ucLevels[ucLevels.length - 1]; // УЦ-5 для значений >0.90
-}
-
-// Функция расчёта позиции указателя (в процентах)
-function getPointerPosition(ucValue, level) {
-    const num = parseFloat(ucValue);
-    if (isNaN(num)) return 0;
-    
-    // Общая ширина шкалы 100%
-    if (num >= 0.90) return 95; // УЦ-5
-    if (num >= 0.80) return 85; // УЦ-4
-    if (num >= 0.60) return 65; // УЦ-3
-    if (num >= 0.40) return 45; // УЦ-2
-    if (num >= 0.20) return 25; // УЦ-1
-    return 10; // УЦ-0
-}
-
 // Основная функция загрузки УЦ
 async function loadUC() {
     try {
@@ -1114,28 +1040,19 @@ async function loadUC() {
         
         const cols = rows[1].split(',');
         
-        // Получаем значение из колонки S (индекс 18)
+        // Получаем значение из колонки S (индекс 18) - как есть, без форматирования
         let value = cols[18]?.replace(/["']/g, '').trim() || '0';
         if (value === '') value = '0';
         
-        // Нормализуем число (запятая на точку)
-        let normalizedValue = value.replace(',', '.');
-        let num = parseFloat(normalizedValue);
+        // Отображаем значение КАК ЕСТЬ (без преобразования в число)
+        document.getElementById('ucValue').innerHTML = value;
         
-        // Отображаем значение УЦ
-        if (!isNaN(num)) {
-            document.getElementById('ucValue').innerHTML = num.toLocaleString('ru-RU', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 10,
-                useGrouping: false
-            });
-        } else {
-            document.getElementById('ucValue').innerHTML = value;
-            num = 0;
-        }
+        // Преобразуем для определения уровня (заменяем запятую на точку)
+        let numValue = parseFloat(value.replace(',', '.'));
+        if (isNaN(numValue)) numValue = 0;
         
         // Определяем уровень
-        const level = getUCLevel(num);
+        const level = getUCLevel(numValue);
         if (level) {
             document.getElementById('ucLevel').innerHTML = `${level.name} — ${level.title}`;
             
@@ -1154,11 +1071,11 @@ async function loadUC() {
             `;
             
             // Позиционируем указатель
-            const position = getPointerPosition(num, level);
+            const position = getPointerPosition(numValue, level);
             const pointer = document.getElementById('ucPointer');
             if (pointer) {
                 pointer.style.left = position + '%';
-                document.getElementById('pointerValue').innerHTML = num.toFixed(4);
+                document.getElementById('pointerValue').innerHTML = value; // Показываем исходное значение
             }
         }
         
