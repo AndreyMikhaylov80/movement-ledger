@@ -1064,6 +1064,7 @@ function getPointerPosition(ucValue, level) {
 }
   
 // Основная функция загрузки УЦ
+// Основная функция загрузки УЦ
 async function loadUC() {
     try {
         const response = await fetch(CSV_URL);
@@ -1078,25 +1079,29 @@ async function loadUC() {
         
         const cols = rows[1].split(',');
         
-        // Получаем значение из колонки S (индекс 18) - как есть, без форматирования
+        // Получаем значение из колонки S (индекс 18)
         let value = cols[18]?.replace(/["']/g, '').trim() || '0';
         if (value === '') value = '0';
-        // Временно добавьте для проверки
-console.log('Оригинальное значение из CSV:', value);
-console.log('Числовое значение для уровня:', numericValue);
-        // Отображаем значение КАК ЕСТЬ (без преобразования в число)
+        
+        // ========== СНАЧАЛА ОБЪЯВЛЯЕМ ПЕРЕМЕННУЮ ==========
+        let numericValue = parseFloat(value.replace(',', '.'));
+        
+        // ОТЛАДКА - проверяем что пришло из CSV
+        console.log('=== ОТЛАДКА loadUC ===');
+        console.log('Оригинальное значение из CSV:', value);
+        console.log('Тип значения:', typeof value);
+        console.log('Числовое значение для уровня:', numericValue);
+        console.log('========================');
+        
+        // Отображаем исходное значение (как есть)
         document.getElementById('ucValue').innerHTML = value;
         
-        // Преобразуем для определения уровня (заменяем запятую на точку)
-        let numValue = parseFloat(value.replace(',', ','));
-        if (isNaN(numValue)) numValue = 0;
+        if (isNaN(numericValue)) numericValue = 0;
         
-        // Определяем уровень
-        const level = getUCLevel(numValue);
+        const level = getUCLevel(numericValue);
         if (level) {
             document.getElementById('ucLevel').innerHTML = `${level.name} — ${level.title}`;
             
-            // Обновляем информацию об уровне
             document.getElementById('levelInfo').innerHTML = `
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                     <div style="background: ${level.color}; width: 40px; height: 40px; border-radius: 8px;"></div>
@@ -1110,12 +1115,11 @@ console.log('Числовое значение для уровня:', numericVal
                 </div>
             `;
             
-            // Позиционируем указатель
-            const position = getPointerPosition(numValue, level);
+            const position = getPointerPosition(numericValue, level);
             const pointer = document.getElementById('ucPointer');
             if (pointer) {
                 pointer.style.left = position + '%';
-                document.getElementById('pointerValue').innerHTML = value; // Показываем исходное значение
+                document.getElementById('pointerValue').innerHTML = value;
             }
         }
         
@@ -1125,6 +1129,7 @@ console.log('Числовое значение для уровня:', numericVal
         document.getElementById('ucLevel').innerHTML = '';
     }
 }
+  
   
  </script>
 </body>
