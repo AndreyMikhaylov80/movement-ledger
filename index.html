@@ -1086,7 +1086,7 @@ async function loadUC() {
         document.getElementById('ucValue').innerHTML = value;
         
         // Преобразуем для определения уровня (заменяем запятую на точку)
-        let numValue = parseFloat(value.replace(',', '.'));
+        let numValue = parseFloat(value.replace(',', ','));
         if (isNaN(numValue)) numValue = 0;
         
         // Определяем уровень
