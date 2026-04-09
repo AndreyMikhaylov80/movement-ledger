@@ -286,7 +286,6 @@
               <option value="influence-asc">Индекс влияния (по возрастанию)</option>
             </select>
         </div>
-</div>
         <div>
             <button id="resetFilterBtn" style="padding: 8px 20px; background: #627eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
                 🗑️ Сбросить фильтр
@@ -715,7 +714,8 @@ function displayTable(data) {
          console.log('🚀 Запуск приложения...');
          await initBlockchain();
          await loadData();
-         await loadUC();  
+         await loadUC(); 
+         initFilters();
          console.log('✅ Инициализация завершена');
      }
      
@@ -1019,12 +1019,50 @@ if (resetBtn) {
 }
 
 // Запускаем инициализацию фильтров после загрузки страницы
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initFilters);
-} else {
+//if (document.readyState === 'loading') {
+//    document.addEventListener('DOMContentLoaded', initFilters);
+//} else 
+  {
     initFilters();
 }
 
+// ========== ДОБАВЬТЕ ЭТОТ КОД ПЕРЕД ФУНКЦИЕЙ loadUC ==========
+// Данные об уровнях
+const ucLevels = [
+    { name: 'УЦ-0', title: 'Зарождающаяся', min: 0, max: 0.20, color: '#8B0000', description: 'Выживание, локальные группы, базовые блага не гарантированы' },
+    { name: 'УЦ-1', title: 'Планетарная', min: 0.20, max: 0.40, color: '#CD853F', description: 'Формирование глобального общества, базовые блага доступны не всем' },
+    { name: 'УЦ-2', title: 'Обеспеченная', min: 0.40, max: 0.60, color: '#FFD700', description: 'Каждый родившийся гарантированно обеспечен базовыми благами' },
+    { name: 'УЦ-3', title: 'Звёздная', min: 0.60, max: 0.80, color: '#87CEEB', description: 'Управление энергией звезды, активное освоение космоса' },
+    { name: 'УЦ-4', title: 'Галактическая', min: 0.80, max: 0.90, color: '#9370DB', description: 'Контроль над энергией галактики, гармония с природой' },
+    { name: 'УЦ-5', title: 'Постчеловеческая', min: 0.90, max: Infinity, color: '#FF69B4', description: 'Духовная зрелость, управление пространством-временем' }
+];
+
+// Функция определения уровня по значению УЦ
+function getUCLevel(ucValue) {
+    const num = parseFloat(ucValue);
+    if (isNaN(num)) return null;
+    
+    for (let level of ucLevels) {
+        if (num >= level.min && num < level.max) {
+            return level;
+        }
+    }
+    return ucLevels[ucLevels.length - 1];
+}
+
+// Функция расчёта позиции указателя (в процентах)
+function getPointerPosition(ucValue, level) {
+    const num = parseFloat(ucValue);
+    if (isNaN(num)) return 0;
+    
+    if (num >= 0.90) return 95;
+    if (num >= 0.80) return 85;
+    if (num >= 0.60) return 65;
+    if (num >= 0.40) return 45;
+    if (num >= 0.20) return 25;
+    return 10;
+}
+  
 // Основная функция загрузки УЦ
 async function loadUC() {
     try {
